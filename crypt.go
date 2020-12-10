@@ -12,7 +12,6 @@ import (
 	"errors"
 )
 
-
 const (
 	CALG_G28147 = C.CALG_G28147
 )
@@ -31,11 +30,14 @@ type CryptoProv struct {
 	hCryptoProv *C.HCRYPTPROV
 }
 
+func GetLastError() int {
+	return int(C.GetLastError())
+}
 
 func CryptImportPublicKeyInfoEx(prov *CryptoProv, context *CertContext) (*PubKey, error) {
 	var pubKey C.HCRYPTKEY
 
-	status := C.CryptImportPublicKeyInfoEx(*prov.hCryptoProv, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+	status := C.CryptImportPublicKeyInfoEx(*prov.hCryptoProv, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING,
 		&(*context.pCertContext).pCertInfo.SubjectPublicKeyInfo, 0, 0, nil, &pubKey)
 	if status == 0 {
 		return nil, errors.New("can't get public key from cert")
@@ -52,7 +54,7 @@ func CryptExportKey(pubKey *PubKey) (*[]byte, error) {
 	}
 
 	blob := make([]byte, size)
-	status = C.CryptExportKey(*pubKey.hCryptKey, 0, PUBLICKEYBLOB, 0, (*C.uchar)(C.CBytes(blob)), &size)
+	status = C.CryptExportKey(*pubKey.hCryptKey, 0, PUBLICKEYBLOB, 0, (*C.uchar)(&blob[0]), &size)
 	if status == 0 {
 		return nil, errors.New("can't export pubKey")
 	}
@@ -70,7 +72,6 @@ func CryptGenKey(cryptoProv *CryptoProv, algo uint, flags uint) (*C.HCRYPTKEY, e
 
 	return &hKey, nil
 }
-
 
 func CryptAcquireContext(container string) (*C.HCRYPTPROV, error) {
 	var hProv C.HCRYPTPROV

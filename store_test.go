@@ -2,9 +2,10 @@ package cryptopro
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 )
+
 
 func TestCertOpenSystemStore(t *testing.T) {
 
@@ -26,38 +27,77 @@ func TestCertOpenSystemStore(t *testing.T) {
 	fmt.Printf("got cert: %+v\n", cert)
 
 
-	pkey, err := CryptAquireCertificatePrivateKey(cert)
+	_, err = CryptAquireCertificatePrivateKey(cert)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = CryptGenKey(pkey, CALG_G28147, CRYPT_EXPORTABLE)
+//	params, err := InitParams(hProv)
+
+	fileName := "10.enc.mp3"
+	chunkSize := 1024*1024
+	fi, err := os.Stat(fileName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	certBytes, err := ioutil.ReadFile("avsh.cer")
+	for
+
+	//bytes, err := ioutil.ReadFile("store_test.go")
+
+	file, err := os.Open("store_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubCert, err := CertCreateCertificateContext(certBytes)
+	msgInfo, err := InitEncodeInfo(cert)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKey, err := CryptImportPublicKeyInfoEx(pkey, pubCert)
+	fiSize := fi.Size()
+	streamInfo, err := InitStreamInfo(nil, int(fiSize), "test_func")
+	if err  != nil {
+		t.Fatal(err)
+	}
+
+
+	msg, err := CryptMsgOpenToEncode(msgInfo, CMSG_ENVELOPED, streamInfo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("got pubKey %+v\n", pubKey)
-	blob, err := CryptExportKey(pubKey)
+	part := make([]byte, fiSize/2)
+
+	_, err = file.Read(part)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("got blob %+v\n", blob)
+	err = CryptMsgUpdate(msg, part, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("got %+v\n", part)
+
+	//file.Seek(fiSize/2, 0)
+
+	part2 := make([]byte, fiSize - fiSize/2)
+	_, err = file.Read(part2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("got2 %+v\n", part2)
+	encBytes, err := CryptMsgUpdate(msg, part2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("%+v\n", encBytes)
+
+
+	//err = ioutil.WriteFile("test.enc", encBytes, 0644)
 
 	_, err = CertCloseStore(store, CERT_CLOSE_STORE_CHECK_FLAG)
 	if err != nil {

@@ -16,12 +16,12 @@ import (
 
 const (
 	CERT_SIMPLE_NAME_STR = C.CERT_SIMPLE_NAME_STR
-	CERT_OID_NAME_STR = C.CERT_OID_NAME_STR
-	CERT_X500_NAME_STR = C.CERT_X500_NAME_STR
+	CERT_OID_NAME_STR    = C.CERT_OID_NAME_STR
+	CERT_X500_NAME_STR   = C.CERT_X500_NAME_STR
 )
 
 const (
-	X509_ASN_ENCODING = C.X509_ASN_ENCODING
+	X509_ASN_ENCODING   = C.X509_ASN_ENCODING
 	PKCS_7_ASN_ENCODING = C.PKCS_7_ASN_ENCODING
 )
 
@@ -34,9 +34,9 @@ type CertStore struct {
 }
 
 type CertContext struct {
-	Issuer string
-	Subject string
-	SHA1Hash string
+	Issuer       string
+	Subject      string
+	SHA1Hash     string
 	pCertContext *C.PCCERT_CONTEXT
 }
 
@@ -56,7 +56,7 @@ func CertNameToStr(nameBlob C.PCERT_NAME_BLOB, flag int) (*string, error) {
 
 func CertCreateCertificateContext(data []byte) (*CertContext, error) {
 	size := len(data)
-	p := C.CertCreateCertificateContext(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,(*C.uchar)(C.CBytes(data)),C.uint(size))
+	p := C.CertCreateCertificateContext(X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, (*C.uchar)(&data[0]), C.uint(size))
 	if p == nil {
 		return nil, errors.New("can't create cert context")
 	}
@@ -84,7 +84,7 @@ func CertFindCertificateInStore(store *CertStore, searchParam string, findType u
 		return nil, err
 	}
 
-	p := C.CertFindCertificateInStore(store.HCertStore, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0,
+	p := C.CertFindCertificateInStore(store.HCertStore, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, 0,
 		C.uint(findType), unsafe.Pointer(&hash), nil)
 	if p == nil {
 		return nil, errors.New("certificate not found")
@@ -100,9 +100,9 @@ func CertFindCertificateInStore(store *CertStore, searchParam string, findType u
 	}
 
 	return &CertContext{
-		Issuer: *issuer,
-		Subject: *subject,
-		SHA1Hash: searchParam,
+		Issuer:       *issuer,
+		Subject:      *subject,
+		SHA1Hash:     searchParam,
 		pCertContext: &p,
 	}, nil
 }
