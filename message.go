@@ -6,8 +6,37 @@ package cryptopro
 #include <stdlib.h>
 #include <stdarg.h>
 #include <cades.h>
+#include <string.h>
 
-extern int getBytes(void*,char*,uint,int);
+CERT_BLOB* get_blob(PCCERT_CONTEXT cert) {
+	CERT_BLOB* blob = malloc(sizeof(CERT_BLOB));
+
+	blob->cbData = cert->cbCertEncoded;
+	blob->pbData = cert->pbCertEncoded;
+
+	return blob;
+}
+
+
+CMSG_SIGNER_ENCODE_INFO* init_signer(PCERT_INFO cert_info, HCRYPTPROV h_crypt_prov, char* hash_algo) {
+	CMSG_SIGNER_ENCODE_INFO* signer;
+	CRYPT_ALGORITHM_IDENTIFIER *hash_ident;
+
+	hash_ident = malloc(sizeof(CRYPT_ALGORITHM_IDENTIFIER));
+	memset(hash_ident, 0, sizeof(CRYPT_ALGORITHM_IDENTIFIER));
+	hash_ident->pszObjId = hash_algo;
+
+	signer = malloc(sizeof(CMSG_SIGNER_ENCODE_INFO));
+	memset(signer, 0, sizeof(CMSG_SIGNER_ENCODE_INFO));
+	signer->cbSize = sizeof(CMSG_SIGNER_ENCODE_INFO);
+	signer->pCertInfo = cert_info;
+	signer->hCryptProv = h_crypt_prov;
+	signer->HashAlgorithm = *hash_ident;
+	signer->dwKeySpec = AT_KEYEXCHANGE;
+	signer->pvHashAuxInfo = NULL;
+
+	return signer;
+}
 */
 import "C"
 import (
@@ -17,7 +46,17 @@ import (
 	"unsafe"
 )
 
-const szOID_CP_GOST_28147 = C.szOID_CP_GOST_28147
+const (
+	AT_KEYEXCHANGE = C.AT_KEYEXCHANGE
+	AT_SIGNATURE   = C.AT_SIGNATURE
+)
+
+const (
+	szOID_CP_GOST_28147        = C.szOID_CP_GOST_28147        // symmetric cipher
+	szOID_CP_GOST_R3411        = C.szOID_CP_GOST_R3411        // cryptography hash
+	szOID_CP_GOST_R3411_12_256 = C.szOID_CP_GOST_R3411_12_256 // digital sign for key length 256 bit
+	szOID_CP_GOST_R3411_12_512 = C.szOID_CP_GOST_R3411_12_512 // digital sign for key length 512 bit
+)
 
 const (
 	CMSG_BARE_CONTENT_FLAG = C.CMSG_BARE_CONTENT_FLAG
@@ -40,8 +79,13 @@ type CryptMsg struct {
 	hCryptMsg *C.HCRYPTMSG
 }
 
+type SignerInfo struct {
+	signer *C.CMSG_SIGNER_ENCODE_INFO
+}
+
 type msgEncodeInfo struct {
 	envpEncodeInfo *C.CMSG_ENVELOPED_ENCODE_INFO
+	signEncodeInfo *C.CMSG_SIGNED_ENCODE_INFO
 }
 
 type StreamInfo struct {
@@ -85,26 +129,55 @@ func InitEncodeInfo(cert *CertContext) (*msgEncodeInfo, error) {
 	return &msgEncodeInfo{envpEncodeInfo: &envpEncodeInfo}, nil
 }
 
-var handle *os.File
+func InitSignedInfo(cert *CertContext) (*msgEncodeInfo, error) {
+	var signedEncodeInfo C.CMSG_SIGNED_ENCODE_INFO
+	var signerEncodeInfo *C.CMSG_SIGNER_ENCODE_INFO
+	var certBlob *C.CERT_BLOB
+	//var hKey C.HCRYPTKEY
+	//var keyLen C.uint
 
-//export getBytes
-func getBytes(pvArg unsafe.Pointer, pbData *C.char, cbData C.uint, final C.int) C.int {
-
-	//	file := C.GoString((*C.char)(pvArg))
-	test := C.GoBytes(unsafe.Pointer(pbData), C.int(cbData))
-	handle.Write(test)
-	if final != 1 {
-		fmt.Println("New run ===")
-		//		fmt.Printf("got file %s\n", file)
-		//		fmt.Printf("got len %d\n", cbData)
-		//		fmt.Printf("got bytes %+v\n", test)
-	} else {
-		fmt.Println("End file ===")
-		handle.Close()
+	if cert == nil {
+		return nil, errors.New("cert context is nil")
 	}
-	fmt.Printf("got final %d\n", final)
-	return 1
+
+	prov, err := CryptAquireCertificatePrivateKey(cert)
+	if err != nil {
+		return nil, err
+	}
+
+	p := *cert.pCertContext
+	//status := C.CryptUserKey(prov, AT_SIGNATURE, hKey)
+	//if status == 0 {
+	//	lastError := GetLastError()
+	//	return nil, fmt.Errorf("Can't get public key. Got error 0x%x\n", lastError)
+	//}
+	//
+	//status = C.CryptExportKey(hKey, 0, PUBLICKEYBLOB, 0, nil, &keyLen)
+	//if status == 0 {
+	//	lastError := GetLastError()
+	//	return nil, fmt.Errorf("Can't get public key. Got error 0x%x\n", lastError)
+	//}
+	//
+	//blob := make([]byte, int(keyLen))
+	//status = C.CryptExportKey(hKey, 0, PUBLICKEYBLOB, 0, &blob[0], &keyLen)
+	//if status == 0 {
+	//	lastError := GetLastError()
+	//	return nil, fmt.Errorf("Can't get public key. Got error 0x%x\n", lastError)
+	//}
+
+	certBlob = C.get_blob(p)
+	signerEncodeInfo = C.init_signer(p.pCertInfo, *prov.hCryptoProv, C.CString(szOID_CP_GOST_R3411_12_256))
+	signedEncodeInfo.cbSize = C.sizeof_CMSG_SIGNED_ENCODE_INFO
+	signedEncodeInfo.cSigners = 1
+	signedEncodeInfo.rgSigners = signerEncodeInfo
+	signedEncodeInfo.cCertEncoded = 1
+	signedEncodeInfo.rgCertEncoded = certBlob
+	signedEncodeInfo.rgCrlEncoded = nil
+
+	return &msgEncodeInfo{signEncodeInfo: &signedEncodeInfo}, nil
 }
+
+var handle *os.File
 
 func InitStreamInfo(streamFunc unsafe.Pointer, contentSize int, fileName string) (*StreamInfo, error) {
 	var streamInfo C.CMSG_STREAM_INFO
@@ -120,14 +193,30 @@ func InitStreamInfo(streamFunc unsafe.Pointer, contentSize int, fileName string)
 		fmt.Println("can't create file")
 	}
 	streamInfo.cbContent = C.uint(contentSize)
-	streamInfo.pfnStreamOutput = (C.PFN_CMSG_STREAM_OUTPUT)(C.getBytes)
+	//streamInfo.pfnStreamOutput = (C.PFN_CMSG_STREAM_OUTPUT)(C.getBytes)
 	streamInfo.pvArg = unsafe.Pointer(C.CString(fileName))
 	return &StreamInfo{streamInfo: &streamInfo}, nil
 }
 
-func CryptMsgOpenToEncode(msgEncodeInfo *msgEncodeInfo, msgType uint, streamInfo *StreamInfo) (*CryptMsg, error) {
-	hMsg := C.CryptMsgOpenToEncode(PKCS_7_ASN_ENCODING|X509_ASN_ENCODING, 0, C.uint(msgType),
-		unsafe.Pointer(msgEncodeInfo.envpEncodeInfo), nil, streamInfo.streamInfo)
+func CryptMsgOpenToEncode(msgEncodeInfo *msgEncodeInfo, msgType uint, flags uint, streamInfo *StreamInfo) (*CryptMsg, error) {
+	var encodeInfo unsafe.Pointer
+	var CstreamInfo *C.CMSG_STREAM_INFO = nil
+
+	if msgType == CMSG_ENVELOPED {
+		encodeInfo = unsafe.Pointer(msgEncodeInfo.envpEncodeInfo)
+	}
+	if msgType == CMSG_SIGNED {
+		encodeInfo = unsafe.Pointer(msgEncodeInfo.signEncodeInfo)
+	}
+
+	if streamInfo != nil {
+		if streamInfo.streamInfo != nil {
+			CstreamInfo = streamInfo.streamInfo
+		}
+	}
+
+	hMsg := C.CryptMsgOpenToEncode(PKCS_7_ASN_ENCODING|X509_ASN_ENCODING, C.uint(flags), C.uint(msgType),
+		encodeInfo, nil, CstreamInfo)
 	if hMsg == nil {
 		codeError := GetLastError()
 		return nil, fmt.Errorf("open message to encode failed, got error  0x%x\n", codeError)

@@ -1,14 +1,15 @@
 package cryptopro
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 )
 
-
 func TestCertOpenSystemStore(t *testing.T) {
-
 
 	_, err := CryptAcquireContext("dcaa1808-81c7-4fa0-b4fb-0cf44797cb3d")
 	if err != nil {
@@ -20,84 +21,157 @@ func TestCertOpenSystemStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	cert, err := CertFindCertificateInStore(store, "39da49123dbe70e953f394074d586eb692f3328e", CERT_FIND_SHA1_HASH)
-//	cert, err := CertFindCertificateInStore(store, "39da49123dbe70e953f394074d586eb692f3328e", CERT_FIND_SHA1_HASH)
+	//	cert, err := CertFindCertificateInStore(store, "39da49123dbe70e953f394074d586eb692f3328e", CERT_FIND_SHA1_HASH)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("got cert: %+v\n", cert)
-
+	fmt.Printf("got cert\n issuer: %s\n subject: %s\n", cert.Issuer, cert.Subject)
 
 	_, err = CryptAquireCertificatePrivateKey(cert)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-//	params, err := InitParams(hProv)
+	//params, err := InitParams(hProv)
 
-	fileName := "10.enc.mp3"
-	chunkSize := 1024*1024
-	fi, err := os.Stat(fileName)
+	//msgInfo, err := InitEncodeInfo(cert)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	//	fileName := "store_test.go"
+
+	//fi, err := os.Stat(fileName)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	//fiSize := fi.Size()
+	//streamInfo, err := InitStreamInfo(nil, int(fiSize), "test_func")
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	//msg, err := CryptMsgOpenToEncode(msgInfo, CMSG_ENVELOPED, streamInfo)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//
+	//chunkSize := 10 * 1024 * 1024
+	//buff := make([]byte, chunkSize)
+	//
+	//file, err := os.Open(fileName)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//
+	//reader := bufio.NewReader(file)
+	//final := 0
+	//for {
+	//	n, err := reader.Read(buff)
+	//	if err != nil && err != io.EOF {
+	//			t.Fatal(err)
+	//	}
+	//
+	//	if n < chunkSize || err == io.EOF {
+	//		final = 1
+	//	}
+	//	buff = buff[:n]
+	//
+	//	errUpd := CryptMsgUpdate(msg, buff, final)
+	//	if errUpd != nil {
+	//		t.Fatal(errUpd)
+	//	}
+	//	if final == 1 {
+	//		break
+	//	}
+	//}
+	//err = file.Close()
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//
+	//err = CryptMsgClose(msg)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	signInfo, err := InitSignedInfo(cert)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for
-
-	//bytes, err := ioutil.ReadFile("store_test.go")
-
-	file, err := os.Open("store_test.go")
+	msg, err := CryptMsgOpenToEncode(signInfo, CMSG_SIGNED, CMSG_DETACHED_FLAG, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	msgInfo, err := InitEncodeInfo(cert)
+	fileName := "Win10_2004_Russian_x32.iso"
+
+	//fi, err := os.Stat(fileName)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	//fiSize := fi.Size()
+	//streamInfo, err := InitStreamInfo(nil, int(fiSize), "test_func")
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	//msg, err := CryptMsgOpenToEncode(msgInfo, CMSG_ENVELOPED, streamInfo)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	chunkSize := 10 * 1024 * 1024
+	buff := make([]byte, chunkSize)
+
+	file, err := os.Open(fileName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fiSize := fi.Size()
-	streamInfo, err := InitStreamInfo(nil, int(fiSize), "test_func")
-	if err  != nil {
-		t.Fatal(err)
+	reader := bufio.NewReader(file)
+	final := 0
+	for {
+		n, err := reader.Read(buff)
+		if err != nil && err != io.EOF {
+			t.Fatal(err)
+		}
+
+		if n < chunkSize || err == io.EOF {
+			final = 1
+		}
+		buff = buff[:n]
+
+		errUpd := CryptMsgUpdate(msg, buff, final)
+		if errUpd != nil {
+			t.Fatal(errUpd)
+		}
+		if final == 1 {
+			break
+		}
 	}
-
-
-	msg, err := CryptMsgOpenToEncode(msgInfo, CMSG_ENVELOPED, streamInfo)
+	err = file.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	part := make([]byte, fiSize/2)
-
-	_, err = file.Read(part)
+	encBytes, err := CryptMsgGetParam(msg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = CryptMsgUpdate(msg, part, 0)
+	err = ioutil.WriteFile("test.sgn", encBytes, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("got %+v\n", part)
-
-	//file.Seek(fiSize/2, 0)
-
-	part2 := make([]byte, fiSize - fiSize/2)
-	_, err = file.Read(part2)
+	err = CryptMsgClose(msg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("got2 %+v\n", part2)
-	encBytes, err := CryptMsgUpdate(msg, part2, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fmt.Printf("%+v\n", encBytes)
-
-
-	//err = ioutil.WriteFile("test.enc", encBytes, 0644)
 
 	_, err = CertCloseStore(store, CERT_CLOSE_STORE_CHECK_FLAG)
 	if err != nil {
