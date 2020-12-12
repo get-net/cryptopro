@@ -6,11 +6,13 @@ package cryptopro
 #include <stdlib.h>
 #include <stdarg.h>
 #include <cades.h>
+#include "shim.h"
 */
 import "C"
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"unsafe"
 )
 
@@ -29,15 +31,15 @@ const (
 	CERT_KEY_PROV_INFO_PROP_ID = C.CERT_KEY_PROV_INFO_PROP_ID
 )
 
-type CertStore struct {
-	HCertStore C.HCERTSTORE
-}
-
 type CertContext struct {
 	Issuer       string
 	Subject      string
 	SHA1Hash     string
 	pCertContext *C.PCCERT_CONTEXT
+}
+
+func (cert CertContext) getCertBlob() *C.CERT_BLOB {
+	return C.get_blob(*cert.pCertContext)
 }
 
 func CertNameToStr(nameBlob C.PCERT_NAME_BLOB, flag int) (*string, error) {
@@ -84,7 +86,7 @@ func CertFindCertificateInStore(store *CertStore, searchParam string, findType u
 		return nil, err
 	}
 
-	p := C.CertFindCertificateInStore(store.HCertStore, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, 0,
+	p := C.CertFindCertificateInStore(*store.HCertStore, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, 0,
 		C.uint(findType), unsafe.Pointer(&hash), nil)
 	if p == nil {
 		return nil, errors.New("certificate not found")
@@ -105,4 +107,15 @@ func CertFindCertificateInStore(store *CertStore, searchParam string, findType u
 		SHA1Hash:     searchParam,
 		pCertContext: &p,
 	}, nil
+}
+
+func CertFreeCertificateContext(cert *CertContext) error {
+	if cert == nil {
+		return errors.New("cert context is nil")
+	}
+	status := C.CertFreeCertificateContext(*cert.pCertContext)
+	if status == 0 {
+		return fmt.Errorf("can't free cert context got error 0x%x", GetLastError())
+	}
+	return nil
 }
