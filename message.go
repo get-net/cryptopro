@@ -156,13 +156,13 @@ func InitStreamInfo(streamFunc unsafe.Pointer, contentSize int) (*StreamInfo, er
 	if streamFunc == nil {
 		fmt.Println("use internal mock function")
 		streamFunc = C.getBytes
+		fmt.Printf("size %d\n", contentSize)
+		handle, err = os.Create("test_stream.enc")
+		if err != nil {
+			fmt.Println("can't create file")
+		}
 	}
 
-	fmt.Printf("size %d\n", contentSize)
-	handle, err = os.Create("test_stream.enc")
-	if err != nil {
-		fmt.Println("can't create file")
-	}
 	streamInfo.cbContent = C.uint(contentSize)
 	streamInfo.pfnStreamOutput = (C.PFN_CMSG_STREAM_OUTPUT)(streamFunc)
 	streamInfo.pvArg = nil
@@ -196,16 +196,17 @@ func CryptMsgOpenToEncode(msgEncodeInfo *msgEncodeInfo, msgType uint, flags uint
 }
 
 func CryptMsgUpdate(msg *CryptMsg, data []byte, final int) error {
-
+	var status C.int
 	if msg == nil {
 		return errors.New("message not found")
 	}
 	if len(data) == 0 {
-		return errors.New("data is empty")
+		status = C.CryptMsgUpdate(*msg.hCryptMsg, nil, 0, C.int(final))
+		//return errors.New("data is empty")
+	} else {
+		size := len(data)
+		status = C.CryptMsgUpdate(*msg.hCryptMsg, (*C.uchar)(&data[0]), C.uint(size), C.int(final))
 	}
-
-	size := len(data)
-	status := C.CryptMsgUpdate(*msg.hCryptMsg, (*C.uchar)(&data[0]), C.uint(size), C.int(final))
 	if status == 0 {
 		numErr := GetLastError()
 		return fmt.Errorf("message update failed, got error 0x%x\n", numErr)
