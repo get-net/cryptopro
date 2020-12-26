@@ -10,6 +10,7 @@ package cryptopro
 import "C"
 import (
 	"errors"
+	"fmt"
 )
 
 const (
@@ -17,7 +18,8 @@ const (
 )
 
 const (
-	CRYPT_EXPORTABLE = C.CRYPT_EXPORTABLE
+	CRYPT_EXPORTABLE    = C.CRYPT_EXPORTABLE
+	CRYPT_VERIFYCONTEXT = C.CRYPT_VERIFYCONTEXT
 )
 
 type CryptoProv struct {
@@ -39,13 +41,21 @@ func CryptImportPublicKeyInfoEx(prov *CryptoProv, context *CertContext) (*Key, e
 	return &Key{hCryptKey: &pubKey}, nil
 }
 
-func CryptAcquireContext(container string) (*C.HCRYPTPROV, error) {
+func CryptAcquireContext(container string, flags uint) (*CryptoProv, error) {
 	var hProv C.HCRYPTPROV
 
-	status := C.CryptAcquireContext(&hProv, C.CString(container), nil, PROV_GOST_2012_256, 0)
+	var cont *C.char
+	if container != "" {
+		cont = C.CString(container)
+	} else {
+		cont = nil
+	}
+	//cont := *container
+
+	status := C.CryptAcquireContext(&hProv, cont, nil, PROV_GOST_2012_256, C.uint(flags))
 	if status == 0 {
-		return nil, errors.New("can't acquire context")
+		return nil, fmt.Errorf("can't acquire context got error 0x%x", GetLastError())
 	}
 
-	return &hProv, nil
+	return &CryptoProv{hCryptoProv: &hProv}, nil
 }
