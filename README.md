@@ -8,6 +8,9 @@ Golang binding for certificated russian GOST Crypto Provider [CryptoPro CSP](htt
 * Find Certificate by SHA1 signature
 * Low Level Sign
 * Low Level Encrypt
+* Generate Hash
+* Sign Hash
+
 
 ### TODO
 
