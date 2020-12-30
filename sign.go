@@ -20,14 +20,14 @@ func CryptSignHash(hHash *CryptoHash, flags uint) ([]byte, error) {
 		return nil, errors.New("hHash can't be nil")
 	}
 
-	status := C.CryptSignHash(*hHash.hHash, AT_SIGNATURE, nil, C.uint(flags), nil, &SigLen)
-	if status != 0 {
-		return nil, fmt.Errorf("can't sign hash got eror 0x%x", GetLastError())
+	status := C.CryptSignHash(*hHash.hHash, AT_KEYEXCHANGE, nil, C.uint(flags), nil, &SigLen)
+	if status == 0 {
+		return nil, fmt.Errorf("can't sign hash size got eror 0x%x", GetLastError())
 	}
-
+	//print(SigLen)
 	signature := make([]byte, SigLen)
-	status = C.CryptSignHash(*hHash.hHash, AT_SIGNATURE, nil, C.uint(flags), (*C.uchar)(&signature[0]), &SigLen)
-	if status != 0 {
+	status = C.CryptSignHash(*hHash.hHash, AT_KEYEXCHANGE, nil, C.uint(flags), (*C.uchar)(&signature[0]), &SigLen)
+	if status == 0 {
 		return nil, fmt.Errorf("can't sign hash got error 0x%x", GetLastError())
 	}
 
