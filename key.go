@@ -9,6 +9,8 @@ package cryptopro
 */
 import "C"
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 )
@@ -16,6 +18,11 @@ import (
 const (
 	PUBLICKEYBLOB  = C.PUBLICKEYBLOB
 	PRIVATEKEYBLOB = C.PRIVATEKEYBLOB
+)
+
+const (
+	KP_ALGID  = C.KP_ALGID
+	KP_KEYLEN = C.KP_KEYLEN
 )
 
 type Key struct {
@@ -34,11 +41,31 @@ func CryptAquireCertificatePrivateKey(context *CertContext) (*CryptoProv, error)
 
 	status := C.CryptAcquireCertificatePrivateKey(*context.pCertContext, 0, nil, &hProv, &dwKeySpec, &mustFree)
 	if status == 0 {
-		lastError := GetLastError()
-		return nil, fmt.Errorf("can't acquire private key got error 0x%x", lastError)
+		return nil, fmt.Errorf("can't acquire private key got error 0x%x", GetLastError())
 	}
 
 	return &CryptoProv{&hProv}, nil
+}
+
+func (k *Key) CryptGetKeyParam(paramType uint) (uint, error) {
+	var size C.uint
+	var val uint
+	status := C.CryptGetKeyParam(*k.hCryptKey, C.uint(paramType), nil, &size, 0)
+	if status == 0 {
+		return 0, fmt.Errorf("can't acquire param from key got error 0x%x", GetLastError())
+	}
+
+	res := make([]byte, size)
+	status = C.CryptGetKeyParam(*k.hCryptKey, C.uint(paramType), (*C.uchar)(&res[0]), &size, 0)
+	if status == 0 {
+		return 0, fmt.Errorf("can't acquire param from key got error 0x%x", GetLastError())
+	}
+	err := binary.Read(bytes.NewBuffer(res), binary.LittleEndian, &val)
+	if err != nil {
+		return 0, err
+	}
+
+	return val, nil
 }
 
 func CryptGenKey(cryptoProv *CryptoProv, algo uint, flags uint) (*C.HCRYPTKEY, error) {
