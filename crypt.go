@@ -24,6 +24,7 @@ const (
 
 type CryptoProv struct {
 	hCryptoProv *C.HCRYPTPROV
+	KeySpec     C.uint
 }
 
 func GetLastError() int {

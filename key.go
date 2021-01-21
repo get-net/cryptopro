@@ -27,6 +27,7 @@ const (
 
 type Key struct {
 	hCryptKey *C.HCRYPTKEY
+	KeySpec   C.uint
 }
 
 func CryptAquireCertificatePrivateKey(context *CertContext) (*CryptoProv, error) {
@@ -44,7 +45,7 @@ func CryptAquireCertificatePrivateKey(context *CertContext) (*CryptoProv, error)
 		return nil, fmt.Errorf("can't acquire private key got error 0x%x", GetLastError())
 	}
 
-	return &CryptoProv{&hProv}, nil
+	return &CryptoProv{&hProv, dwKeySpec}, nil
 }
 
 func (k *Key) CryptGetKeyParam(paramType uint) (uint, error) {
