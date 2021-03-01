@@ -51,7 +51,6 @@ func CryptAcquireContext(container string, flags uint) (*CryptoProv, error) {
 	} else {
 		cont = nil
 	}
-	//cont := *container
 
 	status := C.CryptAcquireContext(&hProv, cont, nil, PROV_GOST_2012_256, C.uint(flags))
 	if status == 0 {

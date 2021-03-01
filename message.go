@@ -32,16 +32,36 @@ const (
 )
 
 const (
-	CMSG_BARE_CONTENT_FLAG = C.CMSG_BARE_CONTENT_FLAG
-	CMSG_DETACHED_FLAG     = C.CMSG_DETACHED_FLAG
-	CMSG_CONTENT_PARAM     = C.CMSG_CONTENT_PARAM
+	CMSG_DATA                 = C.CMSG_CAPILITE_DATA
+	CMSG_ENVELOPED            = C.CMSG_ENVELOPED
+	CMSG_HASHED               = C.CMSG_HASHED
+	CMSG_SIGNED               = C.CMSG_SIGNED
+	CMSG_SIGNED_AND_ENVELOPED = C.CMSG_SIGNED_AND_ENVELOPED
 )
 
 const (
-	CMSG_DATA      = C.CMSG_CAPILITE_DATA
-	CMSG_SIGNED    = C.CMSG_SIGNED
-	CMSG_ENVELOPED = C.CMSG_ENVELOPED
-	CMSG_HASHED    = C.CMSG_HASHED
+	CMSG_BARE_CONTENT_FLAG = C.CMSG_BARE_CONTENT_FLAG
+	CMSG_DETACHED_FLAG     = C.CMSG_DETACHED_FLAG
+)
+const (
+	CMSG_CONTENT_PARAM          = C.CMSG_CONTENT_PARAM
+	CMSG_CERT_PARAM             = C.CMSG_CERT_PARAM
+	CMSG_SIGNER_CERT_INFO_PARAM = C.CMSG_SIGNER_CERT_INFO_PARAM
+	CMSG_SIGNER_CERT_ID_PARAM   = C.CMSG_SIGNER_CERT_ID_PARAM
+	CMSG_SIGNER_COUNT_PARAM     = C.CMSG_SIGNER_COUNT_PARAM
+	CMSG_SIGNER_INFO_PARAM      = C.CMSG_SIGNER_INFO_PARAM
+)
+
+const (
+	CMSG_TRUSTED_SIGNER_FLAG   = C.CMSG_TRUSTED_SIGNER_FLAG
+	CMSG_SIGNER_ONLY_FLAG      = C.CMSG_SIGNER_ONLY_FLAG
+	CMSG_USE_SIGNER_INDEX_FLAG = C.CMSG_USE_SIGNER_INDEX_FLAG
+)
+
+const (
+	CMSG_CTRL_DECRYPT          = C.CMSG_CTRL_DECRYPT
+	CMSG_CTRL_VERIFY_SIGNATURE = C.CMSG_CTRL_VERIFY_SIGNATURE
+	CMSG_CTRL_VERIFY_HASH      = C.CMSG_CTRL_VERIFY_HASH
 )
 
 type CryptEncryptParams struct {
@@ -189,8 +209,23 @@ func CryptMsgOpenToEncode(msgEncodeInfo *msgEncodeInfo, msgType uint, flags uint
 	hMsg := C.CryptMsgOpenToEncode(PKCS_7_ASN_ENCODING|X509_ASN_ENCODING, C.uint(flags), C.uint(msgType),
 		encodeInfo, nil, CstreamInfo)
 	if hMsg == nil {
-		codeError := GetLastError()
-		return nil, fmt.Errorf("open message to encode failed, got error  0x%x\n", codeError)
+		return nil, fmt.Errorf("open message to encode failed, got error  0x%x\n", GetLastError())
+	}
+	return &CryptMsg{hCryptMsg: &hMsg}, nil
+}
+
+func CryptMsgOpenToDecode(prov *CryptoProv, msgType uint, flags uint, streamInfo *StreamInfo) (*CryptMsg, error) {
+	var CstreamInfo *C.CMSG_STREAM_INFO = nil
+	if streamInfo != nil && msgType != CMSG_HASHED {
+		if streamInfo.streamInfo != nil {
+			CstreamInfo = streamInfo.streamInfo
+		}
+	}
+
+	hMsg := C.CryptMsgOpenToDecode(PKCS_7_ASN_ENCODING|X509_ASN_ENCODING, C.uint(flags), C.uint(msgType),
+		*prov.hCryptoProv, nil, CstreamInfo)
+	if hMsg == nil {
+		return nil, fmt.Errorf("open message for decode failed, got error 0x%x\n", GetLastError())
 	}
 	return &CryptMsg{hCryptMsg: &hMsg}, nil
 }
@@ -202,7 +237,6 @@ func CryptMsgUpdate(msg *CryptMsg, data []byte, final int) error {
 	}
 	if len(data) == 0 {
 		status = C.CryptMsgUpdate(*msg.hCryptMsg, nil, 0, C.int(final))
-		//return errors.New("data is empty")
 	} else {
 		size := len(data)
 		status = C.CryptMsgUpdate(*msg.hCryptMsg, (*C.uchar)(&data[0]), C.uint(size), C.int(final))
@@ -215,10 +249,10 @@ func CryptMsgUpdate(msg *CryptMsg, data []byte, final int) error {
 	return nil
 }
 
-func CryptMsgGetParam(msg *CryptMsg) ([]byte, error) {
+func CryptMsgGetParam(msg *CryptMsg, paramType uint, index uint) ([]byte, error) {
 	var encLen C.uint
 
-	status := C.CryptMsgGetParam(*msg.hCryptMsg, CMSG_CONTENT_PARAM, 0, nil, &encLen)
+	status := C.CryptMsgGetParam(*msg.hCryptMsg, C.uint(paramType), C.uint(index), nil, &encLen)
 	if status == 0 {
 		numErr := GetLastError()
 		return nil, fmt.Errorf("message length get failed, got error 0x%x\n", numErr)
@@ -226,7 +260,7 @@ func CryptMsgGetParam(msg *CryptMsg) ([]byte, error) {
 
 	enc := make([]byte, int(encLen))
 
-	status = C.CryptMsgGetParam(*msg.hCryptMsg, CMSG_CONTENT_PARAM, 0, unsafe.Pointer(&enc[0]), &encLen)
+	status = C.CryptMsgGetParam(*msg.hCryptMsg, C.uint(paramType), C.uint(index), unsafe.Pointer(&enc[0]), &encLen)
 	if status == 0 {
 		numErr := GetLastError()
 		return nil, fmt.Errorf("message get failed, got error 0x%x\n", numErr)
@@ -259,4 +293,15 @@ func CryptEncryptMessage(params *CryptEncryptParams, cert *CertContext, data []b
 	}
 
 	return message, nil
+}
+
+func CryptMsgControl(msg *CryptMsg, flags uint, ctrlType uint, cert *CertContext) (bool, error) {
+	certContext := *cert.pCertContext
+
+	status := C.CryptMsgControl(*msg.hCryptMsg, C.uint(flags), C.CMSG_CTRL_VERIFY_SIGNATURE, unsafe.Pointer(certContext.pCertInfo))
+	if status == 0 {
+		return false, fmt.Errorf("can't msg control got error 0x%x", GetLastError())
+	}
+
+	return true, nil
 }

@@ -31,6 +31,10 @@ const (
 	CERT_KEY_PROV_INFO_PROP_ID = C.CERT_KEY_PROV_INFO_PROP_ID
 )
 
+const (
+	CERT_STORE_ADD_ALWAYS = C.CERT_STORE_ADD_ALWAYS
+)
+
 type CertContext struct {
 	Issuer       string
 	Subject      string
@@ -40,6 +44,20 @@ type CertContext struct {
 
 func (cert CertContext) getCertBlob() *C.CERT_BLOB {
 	return C.get_blob(*cert.pCertContext)
+}
+
+func (cert CertContext) getCertInfo() C.PCERT_INFO {
+	var pCertContext C.PCCERT_CONTEXT = *cert.pCertContext
+	return pCertContext.pCertInfo
+}
+
+func (cert CertContext) getCertName() string {
+	context := *cert.pCertContext
+	name, err := CertNameToStr(&context.pCertInfo.Subject, CERT_X500_NAME_STR)
+	if err != nil {
+		return ""
+	}
+	return *name
 }
 
 func CertNameToStr(nameBlob C.PCERT_NAME_BLOB, flag int) (*string, error) {
@@ -107,6 +125,23 @@ func CertFindCertificateInStore(store *CertStore, searchParam string, findType u
 		SHA1Hash:     searchParam,
 		pCertContext: &p,
 	}, nil
+}
+
+func CertGetSubjectCertificateFromStore(store *CertStore, data []byte) (*CertContext, error) {
+	var pCertInfo C.PCERT_INFO = (C.PCERT_INFO)(unsafe.Pointer(&data[0]))
+	pCert := C.CertGetSubjectCertificateFromStore(*store.HCertStore, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, pCertInfo)
+	if pCert == nil {
+		return nil, fmt.Errorf("can't get subject certificate from store got error 0x%x", GetLastError())
+	}
+	return &CertContext{pCertContext: &pCert}, nil
+}
+
+func CertAddCertificateContextToStore(store *CertStore, cert *CertContext, addDisp uint) error {
+	status := C.CertAddCertificateContextToStore(*store.HCertStore, *cert.pCertContext, C.uint(addDisp), nil)
+	if status == 0 {
+		return fmt.Errorf("сan`t add certificate to store got error 0x%x", GetLastError())
+	}
+	return nil
 }
 
 func CertFreeCertificateContext(cert *CertContext) error {

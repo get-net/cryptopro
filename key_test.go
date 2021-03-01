@@ -25,7 +25,12 @@ func TestCryptExportPublicKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = CryptExportKey(key, PUBLICKEYBLOB)
+	blob, err := CryptExportKey(key, PUBLICKEYBLOB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = CryptImportKey(prov, blob)
 	if err != nil {
 		t.Fatal(err)
 	}

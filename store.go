@@ -12,6 +12,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"unsafe"
 	//"github.com/GeertJohan/cgo.wchar"
 )
 
@@ -62,8 +63,16 @@ type CertStore struct {
 func CertOpenSystemStore(storeName string) (*CertStore, error) {
 	store := C.CertOpenSystemStore(0, C.CString(storeName))
 	if store == nil {
-		lastError := GetLastError()
-		return nil, fmt.Errorf("can`t open store %s got error 0x%x", storeName, lastError)
+		return nil, fmt.Errorf("can`t open store %s got error 0x%x", storeName, GetLastError())
+	}
+	return &CertStore{HCertStore: &store}, nil
+}
+
+func CertMsgOpenStore(msg *CryptMsg, prov *CryptoProv) (*CertStore, error) {
+	store := C.CertOpenStore(C.CERT_STORE_PROV_MSG, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, *prov.hCryptoProv, 0,
+		unsafe.Pointer(*msg.hCryptMsg))
+	if store == nil {
+		return nil, fmt.Errorf("can't open store for message got error 0x%x", GetLastError())
 	}
 	return &CertStore{HCertStore: &store}, nil
 }
@@ -75,8 +84,7 @@ func CertCloseStore(store *CertStore, flags uint32) error {
 
 	status := C.CertCloseStore(*store.HCertStore, C.uint(flags))
 	if status == 0 {
-		lastError := GetLastError()
-		return fmt.Errorf("can't close store got error 0x%x", lastError)
+		return fmt.Errorf("can't close store got error 0x%x", GetLastError())
 	}
 	return nil
 }

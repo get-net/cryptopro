@@ -2,7 +2,6 @@ package cryptopro
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -98,7 +97,7 @@ func TestCryptSignMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("got cert\n issuer: %s\n subject: %s\n", cert.Issuer, cert.Subject)
+	t.Logf("got cert\n issuer: %s\n subject: %s\n", cert.Issuer, cert.Subject)
 
 	_, err = CryptAquireCertificatePrivateKey(cert)
 	if err != nil {
@@ -151,12 +150,12 @@ func TestCryptSignMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	encBytes, err := CryptMsgGetParam(msg)
+	encBytes, err := CryptMsgGetParam(msg, CMSG_CONTENT_PARAM, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = ioutil.WriteFile("test.sgn", encBytes, 0644)
+	err = ioutil.WriteFile("store_test.go.sgn", encBytes, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +165,131 @@ func TestCryptSignMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	decBytes, err := ioutil.ReadFile("store_test.go.sgn")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prov, err := CryptAcquireContext("", CRYPT_VERIFYCONTEXT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decMsg, err := CryptMsgOpenToDecode(prov, 0, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CryptMsgUpdate(decMsg, decBytes, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//_, err = CryptMsgGetParam(decMsg, CMSG_CONTENT_PARAM, 0)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	data, err := CryptMsgGetParam(decMsg, CMSG_SIGNER_CERT_INFO_PARAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkStore, err := CertMsgOpenStore(decMsg, prov)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkCert, err := CertGetSubjectCertificateFromStore(checkStore, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(checkCert.getCertName())
+
+	status, err := CryptMsgControl(decMsg, 0, CMSG_CTRL_VERIFY_SIGNATURE, checkCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if status {
+		t.Log("Signature verified")
+	}
+
+	err = ioutil.WriteFile("signer.crt", data, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CryptMsgClose(decMsg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = CertCloseStore(store, CERT_CLOSE_STORE_CHECK_FLAG)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCryptVerifyMessage(t *testing.T) {
+	decBytes, err := ioutil.ReadFile("message_test.go.der.sgn")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prov, err := CryptAcquireContext("", CRYPT_VERIFYCONTEXT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decMsg, err := CryptMsgOpenToDecode(prov, 0, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CryptMsgUpdate(decMsg, decBytes, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := CryptMsgGetParam(decMsg, CMSG_SIGNER_CERT_INFO_PARAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkStore, err := CertMsgOpenStore(decMsg, prov)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkCert, err := CertGetSubjectCertificateFromStore(checkStore, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(checkCert.getCertName())
+
+	status, err := CryptMsgControl(decMsg, 0, CMSG_CTRL_VERIFY_SIGNATURE, checkCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if status {
+		t.Log("Signature verified")
+	}
+
+	err = ioutil.WriteFile("signer.crt", data, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CryptMsgClose(decMsg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CertCloseStore(checkStore, CERT_CLOSE_STORE_CHECK_FLAG)
 	if err != nil {
 		t.Fatal(err)
 	}

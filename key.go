@@ -89,12 +89,11 @@ func CryptGetUserKey(prov *CryptoProv, keySpec uint) (*Key, error) {
 	return &Key{hCryptKey: &phUserKey}, nil
 }
 
-func CryptExportKey(key *Key, blobType uint) (*[]byte, error) {
+func CryptExportKey(key *Key, blobType uint) ([]byte, error) {
 	var size C.uint
 	status := C.CryptExportKey(*key.hCryptKey, 0, C.uint(blobType), 0, nil, &size)
-	print(status)
 	if status == 0 {
-		return nil, errors.New("can't export keypubKey")
+		return nil, fmt.Errorf("can't export keypubKey gpt error 0x%x", GetLastError())
 	}
 
 	blob := make([]byte, size)
@@ -103,5 +102,21 @@ func CryptExportKey(key *Key, blobType uint) (*[]byte, error) {
 		return nil, fmt.Errorf("can't export keypubKey got error 0x%x", GetLastError())
 	}
 
-	return &blob, nil
+	return blob, nil
+}
+
+func CryptImportKey(prov *CryptoProv, keyBlob []byte) (*Key, error) {
+	if prov == nil {
+		return nil, errors.New("provider not found")
+	}
+	if len(keyBlob) == 0 {
+		return nil, errors.New("blob should be greater than zero")
+	}
+	var hKey C.HCRYPTKEY
+
+	status := C.CryptImportKey(*prov.hCryptoProv, (*C.uchar)(&keyBlob[0]), C.uint(len(keyBlob)), 0, 0, &hKey)
+	if status == 0 {
+		return nil, fmt.Errorf("can't import key got error 0x%x", GetLastError())
+	}
+	return &Key{hCryptKey: &hKey}, nil
 }
