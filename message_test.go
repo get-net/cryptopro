@@ -109,7 +109,7 @@ func TestCryptSignMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := CryptMsgOpenToEncode(signInfo, CMSG_SIGNED, CMSG_DETACHED_FLAG, nil)
+	msg, err := CryptMsgOpenToEncode(signInfo, CMSG_SIGNED, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,10 +185,10 @@ func TestCryptSignMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	//_, err = CryptMsgGetParam(decMsg, CMSG_CONTENT_PARAM, 0)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
+	_, err = CryptMsgGetParam(decMsg, CMSG_CONTENT_PARAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	data, err := CryptMsgGetParam(decMsg, CMSG_SIGNER_CERT_INFO_PARAM, 0)
 	if err != nil {
@@ -233,7 +233,17 @@ func TestCryptSignMessage(t *testing.T) {
 }
 
 func TestCryptVerifyMessage(t *testing.T) {
-	decBytes, err := ioutil.ReadFile("message_test.go.der.sgn")
+
+	fileName := "store_test.go"
+	chunkSize := 10 * 1024 * 1024
+	buff := make([]byte, chunkSize)
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decBytes, err := ioutil.ReadFile("store_test.go.sgn")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,12 +253,38 @@ func TestCryptVerifyMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decMsg, err := CryptMsgOpenToDecode(prov, 0, 0, nil)
+	decMsg, err := CryptMsgOpenToDecode(prov, 0, CMSG_DETACHED_FLAG, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	err = CryptMsgUpdate(decMsg, decBytes, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reader := bufio.NewReader(file)
+	final := 0
+	for {
+		n, err := reader.Read(buff)
+		if err != nil && err != io.EOF {
+			t.Fatal(err)
+		}
+
+		if n < chunkSize || err == io.EOF {
+			final = 1
+		}
+		buff = buff[:n]
+
+		errUpd := CryptMsgUpdate(decMsg, buff, final)
+		if errUpd != nil {
+			t.Fatal(errUpd)
+		}
+		if final == 1 {
+			break
+		}
+	}
+	err = file.Close()
 	if err != nil {
 		t.Fatal(err)
 	}

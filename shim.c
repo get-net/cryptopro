@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
-#include <cades.h>
 #include <string.h>
+#include <CSP_WinCrypt.h>
 
 #include "shim.h"
 #include "_cgo_export.h"

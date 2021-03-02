@@ -2,10 +2,11 @@ package cryptopro
 
 /*
 #cgo CFLAGS: -DUNIX -DHAVE_LIMITS_H -DSIZEOF_VOID_P=8 -I/opt/cprocsp/include/ -I/opt/cprocsp/include/cpcsp -I/opt/cprocsp/include/pki
-#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20 -lcapi10 -lcades -lxades -lrdrsup
+#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20 -lcapi10
 #include <stdlib.h>
 #include <stdarg.h>
-#include <cades.h>
+#include <CSP_WinCrypt.h>
+#include <WinCryptEx.h>
 #include <string.h>
 #include "shim.h"
 
@@ -40,8 +41,9 @@ const (
 )
 
 const (
-	CMSG_BARE_CONTENT_FLAG = C.CMSG_BARE_CONTENT_FLAG
-	CMSG_DETACHED_FLAG     = C.CMSG_DETACHED_FLAG
+	CMSG_BARE_CONTENT_FLAG          = C.CMSG_BARE_CONTENT_FLAG
+	CMSG_DETACHED_FLAG              = C.CMSG_DETACHED_FLAG
+	CMSG_CRYPT_RELEASE_CONTEXT_FLAG = C.CMSG_CRYPT_RELEASE_CONTEXT_FLAG
 )
 const (
 	CMSG_CONTENT_PARAM          = C.CMSG_CONTENT_PARAM

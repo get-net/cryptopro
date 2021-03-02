@@ -2,10 +2,11 @@ package cryptopro
 
 /*
 #cgo CFLAGS: -DUNIX -DHAVE_LIMITS_H -DSIZEOF_VOID_P=8 -I/opt/cprocsp/include/ -I/opt/cprocsp/include/cpcsp -I/opt/cprocsp/include/pki
-#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20 -lcapi10 -lcades -lxades -lrdrsup
+#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20 -lcapi10
 #include <stdlib.h>
 #include <stdarg.h>
-#include <cades.h>
+#include <CSP_WinCrypt.h>
+#include <WinCryptEx.h>
 */
 import "C"
 
@@ -71,6 +72,15 @@ func CertOpenSystemStore(storeName string) (*CertStore, error) {
 func CertMsgOpenStore(msg *CryptMsg, prov *CryptoProv) (*CertStore, error) {
 	store := C.CertOpenStore(C.CERT_STORE_PROV_MSG, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, *prov.hCryptoProv, 0,
 		unsafe.Pointer(*msg.hCryptMsg))
+	if store == nil {
+		return nil, fmt.Errorf("can't open store for message got error 0x%x", GetLastError())
+	}
+	return &CertStore{HCertStore: &store}, nil
+}
+
+func CertMemOpenStore() (*CertStore, error) {
+	store := C.CertOpenStore(C.CERT_STORE_PROV_MEMORY, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, 0,
+		C.CERT_STORE_CREATE_NEW_FLAG, nil)
 	if store == nil {
 		return nil, fmt.Errorf("can't open store for message got error 0x%x", GetLastError())
 	}

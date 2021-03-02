@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
-#include <cades.h>
+#include <CSP_WinCrypt.h>
 #include <string.h>
 
 extern CERT_BLOB* get_blob(PCCERT_CONTEXT cert);
