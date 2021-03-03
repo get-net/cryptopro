@@ -12,6 +12,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 const (
@@ -23,13 +24,24 @@ const (
 	CRYPT_VERIFYCONTEXT = C.CRYPT_VERIFYCONTEXT
 )
 
+var CRYPT_E_STREAM_MSG_NOT_READY = errors.New("CRYPT_E_STREAM_MSG_NOT_READY")
+
+var winAPIErrors = map[int]error{
+	0x80091010: CRYPT_E_STREAM_MSG_NOT_READY,
+}
+
 type CryptoProv struct {
 	hCryptoProv *C.HCRYPTPROV
 	KeySpec     C.uint
 }
 
-func GetLastError() int {
-	return int(C.GetLastError())
+func GetLastError() error {
+	codeError := int(C.GetLastError())
+	err := winAPIErrors[codeError]
+	if err == nil {
+		err = errors.New(strconv.Itoa(codeError))
+	}
+	return err
 }
 
 func CryptImportPublicKeyInfoEx(prov *CryptoProv, context *CertContext) (*Key, error) {

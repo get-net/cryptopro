@@ -46,12 +46,15 @@ const (
 	CMSG_CRYPT_RELEASE_CONTEXT_FLAG = C.CMSG_CRYPT_RELEASE_CONTEXT_FLAG
 )
 const (
-	CMSG_CONTENT_PARAM          = C.CMSG_CONTENT_PARAM
-	CMSG_CERT_PARAM             = C.CMSG_CERT_PARAM
-	CMSG_SIGNER_CERT_INFO_PARAM = C.CMSG_SIGNER_CERT_INFO_PARAM
-	CMSG_SIGNER_CERT_ID_PARAM   = C.CMSG_SIGNER_CERT_ID_PARAM
-	CMSG_SIGNER_COUNT_PARAM     = C.CMSG_SIGNER_COUNT_PARAM
-	CMSG_SIGNER_INFO_PARAM      = C.CMSG_SIGNER_INFO_PARAM
+	CMSG_CONTENT_PARAM            = C.CMSG_CONTENT_PARAM
+	CMSG_CERT_PARAM               = C.CMSG_CERT_PARAM
+	CMSG_SIGNER_CERT_INFO_PARAM   = C.CMSG_SIGNER_CERT_INFO_PARAM
+	CMSG_SIGNER_CERT_ID_PARAM     = C.CMSG_SIGNER_CERT_ID_PARAM
+	CMSG_SIGNER_COUNT_PAнRAM      = C.CMSG_SIGNER_COUNT_PARAM
+	CMSG_SIGNER_INFO_PARAM        = C.CMSG_SIGNER_INFO_PARAM
+	CMSG_ENVELOPE_ALGORITHM_PARAM = C.CMSG_ENVELOPE_ALGORITHM_PARAM
+	CMSG_RECIPIENT_COUNT_PARAM    = C.CMSG_RECIPIENT_COUNT_PARAM
+	CMSG_RECIPIENT_INFO_PARAM     = C.CMSG_RECIPIENT_INFO_PARAM
 )
 
 const (
@@ -68,6 +71,10 @@ const (
 
 type CryptEncryptParams struct {
 	cmsPara *C.CRYPT_ENCRYPT_MESSAGE_PARA
+}
+
+type CryptDecryptParams struct {
+	cmsPara *C.CMSG_CTRL_DECRYPT_PARA
 }
 
 type CryptMsg struct {
@@ -123,6 +130,26 @@ func InitParams(hProv *CryptoProv) (*CryptEncryptParams, error) {
 	return &CryptEncryptParams{cmsPara: &encryptParams}, nil
 }
 
+func InitDecryptPara(ctx *CertContext) (*CryptDecryptParams, error) {
+	var decryptParams C.CMSG_CTRL_DECRYPT_PARA
+	ptr, err := CertGetCertificateContextProperty(ctx, CERT_KEY_PROV_INFO_PROP_ID)
+	if err != nil {
+		return nil, err
+	}
+	var keyProvInfo C.PCRYPT_KEY_PROV_INFO = (C.PCRYPT_KEY_PROV_INFO)(unsafe.Pointer(&ptr[0]))
+
+	prov, err := CryptAquireCertificatePrivateKey(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	decryptParams.cbSize = C.sizeof_CMSG_CTRL_DECRYPT_PARA
+	decryptParams.dwKeySpec = keyProvInfo.dwKeySpec
+	decryptParams.hCryptProv = *prov.hCryptoProv
+
+	return &CryptDecryptParams{cmsPara: &decryptParams}, nil
+}
+
 func InitEncodeInfo(cert *CertContext) (*msgEncodeInfo, error) {
 	var envpEncodeInfo C.CMSG_ENVELOPED_ENCODE_INFO
 	var encryptAlgorithm C.CRYPT_ALGORITHM_IDENTIFIER
@@ -171,7 +198,7 @@ func InitSignedInfo(cert *CertContext) (*msgEncodeInfo, error) {
 
 var handle *os.File
 
-func InitStreamInfo(streamFunc unsafe.Pointer, contentSize int) (*StreamInfo, error) {
+func InitStreamInfo(streamFunc unsafe.Pointer, fileName string, contentSize int) (*StreamInfo, error) {
 	var streamInfo C.CMSG_STREAM_INFO
 	var err error
 
@@ -179,7 +206,7 @@ func InitStreamInfo(streamFunc unsafe.Pointer, contentSize int) (*StreamInfo, er
 		fmt.Println("use internal mock function")
 		streamFunc = C.getBytes
 		fmt.Printf("size %d\n", contentSize)
-		handle, err = os.Create("test_stream.enc")
+		handle, err = os.Create(fileName)
 		if err != nil {
 			fmt.Println("can't create file")
 		}
@@ -189,6 +216,10 @@ func InitStreamInfo(streamFunc unsafe.Pointer, contentSize int) (*StreamInfo, er
 	streamInfo.pfnStreamOutput = (C.PFN_CMSG_STREAM_OUTPUT)(streamFunc)
 	streamInfo.pvArg = nil
 	return &StreamInfo{streamInfo: &streamInfo}, nil
+}
+
+func closeStream() {
+	handle.Close()
 }
 
 func CryptMsgOpenToEncode(msgEncodeInfo *msgEncodeInfo, msgType uint, flags uint, streamInfo *StreamInfo) (*CryptMsg, error) {
@@ -216,7 +247,7 @@ func CryptMsgOpenToEncode(msgEncodeInfo *msgEncodeInfo, msgType uint, flags uint
 	return &CryptMsg{hCryptMsg: &hMsg}, nil
 }
 
-func CryptMsgOpenToDecode(prov *CryptoProv, msgType uint, flags uint, streamInfo *StreamInfo) (*CryptMsg, error) {
+func CryptMsgOpenToDecode(msgType uint, flags uint, streamInfo *StreamInfo) (*CryptMsg, error) {
 	var CstreamInfo *C.CMSG_STREAM_INFO = nil
 	if streamInfo != nil && msgType != CMSG_HASHED {
 		if streamInfo.streamInfo != nil {
@@ -225,7 +256,7 @@ func CryptMsgOpenToDecode(prov *CryptoProv, msgType uint, flags uint, streamInfo
 	}
 
 	hMsg := C.CryptMsgOpenToDecode(PKCS_7_ASN_ENCODING|X509_ASN_ENCODING, C.uint(flags), C.uint(msgType),
-		*prov.hCryptoProv, nil, CstreamInfo)
+		0, nil, CstreamInfo)
 	if hMsg == nil {
 		return nil, fmt.Errorf("open message for decode failed, got error 0x%x\n", GetLastError())
 	}
@@ -256,16 +287,14 @@ func CryptMsgGetParam(msg *CryptMsg, paramType uint, index uint) ([]byte, error)
 
 	status := C.CryptMsgGetParam(*msg.hCryptMsg, C.uint(paramType), C.uint(index), nil, &encLen)
 	if status == 0 {
-		numErr := GetLastError()
-		return nil, fmt.Errorf("message length get failed, got error 0x%x\n", numErr)
+		return nil, GetLastError()
 	}
 
 	enc := make([]byte, int(encLen))
 
 	status = C.CryptMsgGetParam(*msg.hCryptMsg, C.uint(paramType), C.uint(index), unsafe.Pointer(&enc[0]), &encLen)
 	if status == 0 {
-		numErr := GetLastError()
-		return nil, fmt.Errorf("message get failed, got error 0x%x\n", numErr)
+		return nil, GetLastError()
 	}
 	return enc, nil
 }
@@ -297,10 +326,9 @@ func CryptEncryptMessage(params *CryptEncryptParams, cert *CertContext, data []b
 	return message, nil
 }
 
-func CryptMsgControl(msg *CryptMsg, flags uint, ctrlType uint, cert *CertContext) (bool, error) {
-	certContext := *cert.pCertContext
+func CryptMsgControl(msg *CryptMsg, flags uint, ctrlType uint, pointer unsafe.Pointer) (bool, error) {
 
-	status := C.CryptMsgControl(*msg.hCryptMsg, C.uint(flags), C.CMSG_CTRL_VERIFY_SIGNATURE, unsafe.Pointer(certContext.pCertInfo))
+	status := C.CryptMsgControl(*msg.hCryptMsg, C.uint(flags), C.uint(ctrlType), pointer)
 	if status == 0 {
 		return false, fmt.Errorf("can't msg control got error 0x%x", GetLastError())
 	}

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"unsafe"
 )
 
 func TestCryptEncryptMessage(t *testing.T) {
@@ -32,7 +33,7 @@ func TestCryptEncryptMessage(t *testing.T) {
 	}
 
 	fiSize := fi.Size()
-	streamInfo, err := InitStreamInfo(nil, int(fiSize))
+	streamInfo, err := InitStreamInfo(nil, "test_stream.enc", int(fiSize))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,63 +166,7 @@ func TestCryptSignMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decBytes, err := ioutil.ReadFile("store_test.go.sgn")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	prov, err := CryptAcquireContext("", CRYPT_VERIFYCONTEXT)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	decMsg, err := CryptMsgOpenToDecode(prov, 0, 0, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = CryptMsgUpdate(decMsg, decBytes, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = CryptMsgGetParam(decMsg, CMSG_CONTENT_PARAM, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	data, err := CryptMsgGetParam(decMsg, CMSG_SIGNER_CERT_INFO_PARAM, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	checkStore, err := CertMsgOpenStore(decMsg, prov)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	checkCert, err := CertGetSubjectCertificateFromStore(checkStore, data)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log(checkCert.getCertName())
-
-	status, err := CryptMsgControl(decMsg, 0, CMSG_CTRL_VERIFY_SIGNATURE, checkCert)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if status {
-		t.Log("Signature verified")
-	}
-
-	err = ioutil.WriteFile("signer.crt", data, 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = CryptMsgClose(decMsg)
+	err = CertFreeCertificateContext(cert)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,12 +193,7 @@ func TestCryptVerifyMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prov, err := CryptAcquireContext("", CRYPT_VERIFYCONTEXT)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	decMsg, err := CryptMsgOpenToDecode(prov, 0, CMSG_DETACHED_FLAG, nil)
+	decMsg, err := CryptMsgOpenToDecode(0, CMSG_DETACHED_FLAG, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +234,7 @@ func TestCryptVerifyMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checkStore, err := CertMsgOpenStore(decMsg, prov)
+	checkStore, err := CertMsgOpenStore(decMsg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +246,7 @@ func TestCryptVerifyMessage(t *testing.T) {
 
 	t.Log(checkCert.getCertName())
 
-	status, err := CryptMsgControl(decMsg, 0, CMSG_CTRL_VERIFY_SIGNATURE, checkCert)
+	status, err := CryptMsgControl(decMsg, 0, CMSG_CTRL_VERIFY_SIGNATURE, unsafe.Pointer(checkCert.getCertInfo()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,17 +255,121 @@ func TestCryptVerifyMessage(t *testing.T) {
 		t.Log("Signature verified")
 	}
 
-	err = ioutil.WriteFile("signer.crt", data, 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	err = CryptMsgClose(decMsg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	err = CertFreeCertificateContext(checkCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = CertCloseStore(checkStore, CERT_CLOSE_STORE_CHECK_FLAG)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCryptDecryptMessage(t *testing.T) {
+
+	store, err := CertOpenSystemStore("MY")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//cert, err := CertFindCertificateInStore(store, "39da49123dbe70e953f394074d586eb692f3328e", CERT_FIND_SHA1_HASH)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//
+	//msgInfo, err := InitDecodeInfo(cert)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	fileName := "test_stream.enc"
+
+	fi, err := os.Stat(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fiSize := fi.Size()
+
+	streamInfo, err := InitStreamInfo(nil, "test_stream.dec", int(fiSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := CryptMsgOpenToDecode(0, 0, streamInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	chunkSize := 10 * 1024 * 1024
+	buff := make([]byte, chunkSize)
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reader := bufio.NewReader(file)
+	final := 0
+	for {
+		n, err := reader.Read(buff)
+		if err != nil && err != io.EOF {
+			t.Fatal(err)
+		}
+
+		if n < chunkSize || err == io.EOF {
+			final = 1
+		}
+		buff = buff[:n]
+
+		errUpd := CryptMsgUpdate(msg, buff, final)
+		if errUpd != nil {
+			t.Fatal(errUpd)
+		}
+		test, err := CryptMsgGetParam(msg, CMSG_ENVELOPE_ALGORITHM_PARAM, 0)
+		if err != nil && err != CRYPT_E_STREAM_MSG_NOT_READY {
+			t.Fatal(err)
+		} else {
+			t.Logf("got %s", test)
+			certData, certErr := CryptMsgGetParam(msg, CMSG_RECIPIENT_INFO_PARAM, 0)
+			if certErr != nil {
+				t.Fatal(certErr)
+			}
+			checkCert, err := CertGetSubjectCertificateFromStore(store, certData)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			param, err := InitDecryptPara(checkCert)
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, err := CryptMsgControl(msg, 0, CMSG_CTRL_DECRYPT, unsafe.Pointer(param.cmsPara))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status {
+				t.Log("Decrypt Context Success")
+			}
+
+			t.Log(checkCert.getCertName())
+
+		}
+		if final == 1 {
+			break
+		}
+	}
+	err = file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CryptMsgClose(msg)
 	if err != nil {
 		t.Fatal(err)
 	}

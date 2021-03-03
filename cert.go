@@ -42,6 +42,10 @@ type CertContext struct {
 	pCertContext *C.PCCERT_CONTEXT
 }
 
+type KeyProvInfo struct {
+	cryptKeyProvInfo C.CRYPT_KEY_PROV_INFO
+}
+
 func (cert CertContext) getCertBlob() *C.CERT_BLOB {
 	return C.get_blob(*cert.pCertContext)
 }
@@ -142,6 +146,21 @@ func CertAddCertificateContextToStore(store *CertStore, cert *CertContext, addDi
 		return fmt.Errorf("сan`t add certificate to store got error 0x%x", GetLastError())
 	}
 	return nil
+}
+
+func CertGetCertificateContextProperty(ctx *CertContext, propId uint) ([]byte, error) {
+	var size C.uint
+	status := C.CertGetCertificateContextProperty(*ctx.pCertContext, C.uint(propId), nil, &size)
+	if status == 0 {
+		return nil, GetLastError()
+	}
+
+	data := make([]byte, size)
+	status = C.CertGetCertificateContextProperty(*ctx.pCertContext, C.uint(propId), unsafe.Pointer(&data[0]), &size)
+	if status == 0 {
+		return nil, GetLastError()
+	}
+	return data, nil
 }
 
 func CertFreeCertificateContext(cert *CertContext) error {

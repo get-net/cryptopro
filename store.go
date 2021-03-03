@@ -69,8 +69,8 @@ func CertOpenSystemStore(storeName string) (*CertStore, error) {
 	return &CertStore{HCertStore: &store}, nil
 }
 
-func CertMsgOpenStore(msg *CryptMsg, prov *CryptoProv) (*CertStore, error) {
-	store := C.CertOpenStore(C.CERT_STORE_PROV_MSG, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, *prov.hCryptoProv, 0,
+func CertMsgOpenStore(msg *CryptMsg) (*CertStore, error) {
+	store := C.CertOpenStore(C.CERT_STORE_PROV_MSG, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, 0, 0,
 		unsafe.Pointer(*msg.hCryptMsg))
 	if store == nil {
 		return nil, fmt.Errorf("can't open store for message got error 0x%x", GetLastError())
