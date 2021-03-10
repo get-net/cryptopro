@@ -2,7 +2,7 @@ package cryptopro
 
 /*
 #cgo CFLAGS: -DUNIX -DHAVE_LIMITS_H -DSIZEOF_VOID_P=8 -I/opt/cprocsp/include/ -I/opt/cprocsp/include/cpcsp -I/opt/cprocsp/include/pki
-#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20  -lcapi10
+#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20 -lcapi10
 #include <stdlib.h>
 #include <stdarg.h>
 #include <CSP_WinCrypt.h>
@@ -13,6 +13,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
+	"unicode/utf16"
 	"unsafe"
 )
 
@@ -29,10 +31,19 @@ const (
 
 const (
 	CERT_KEY_PROV_INFO_PROP_ID = C.CERT_KEY_PROV_INFO_PROP_ID
+	CERT_HASH_PROP_ID          = C.CERT_HASH_PROP_ID
+)
+
+const (
+	szOID_CRL_DIST_POINTS = C.szOID_CRL_DIST_POINTS
 )
 
 const (
 	CERT_STORE_ADD_ALWAYS = C.CERT_STORE_ADD_ALWAYS
+)
+
+const (
+	X509_CRL_DIST_POINTS = "2.5.29.31"
 )
 
 type CertContext struct {
@@ -44,6 +55,18 @@ type CertContext struct {
 
 type KeyProvInfo struct {
 	cryptKeyProvInfo C.CRYPT_KEY_PROV_INFO
+}
+
+type CertExtension struct {
+	pCertExtension C.PCERT_EXTENSION
+}
+
+func Utf16Decode(ptr unsafe.Pointer) string {
+	const maxRunes = 1<<30 - 1
+
+	sz := C.wcslen((C.LPWSTR)(ptr)) * 2
+	wstr := (*[maxRunes]uint16)(ptr)[:sz]
+	return string(utf16.Decode(wstr))
 }
 
 func (cert CertContext) getCertBlob() *C.CERT_BLOB {
@@ -62,6 +85,107 @@ func (cert CertContext) getCertName() string {
 		return ""
 	}
 	return *name
+}
+
+func (cert CertContext) getExtension(index int) (*CertExtension, error) {
+	pcertInfo := cert.getCertInfo()
+
+	extLen := int(pcertInfo.cExtension)
+	if index >= extLen {
+		return nil, errors.New("out of index")
+	}
+
+	ext := C.get_extension(pcertInfo, C.int(index))
+
+	return &CertExtension{pCertExtension: ext}, nil
+}
+
+func (cert CertContext) getExtensionLen() int {
+	pcertInfo := cert.getCertInfo()
+	return int(pcertInfo.cExtension)
+}
+
+func (ce CertExtension) getOID() string {
+	return C.GoString((*C.char)(unsafe.Pointer(ce.pCertExtension.pszObjId)))
+}
+
+func (ce CertExtension) getCrlDistPoints() ([]string, error) {
+	var distInfos C.PCRL_DIST_POINTS_INFO
+	var lenInfo C.uint
+
+	var crls []string
+
+	value := ce.pCertExtension.Value
+	status := C.CryptDecodeObject(X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, C.X509_CRL_DIST_POINTS,
+		value.pbData, value.cbData, 0, nil, &lenInfo)
+	if status == 0 {
+		return nil, GetLastError()
+	}
+	info := make([]byte, int(lenInfo))
+	status = C.CryptDecodeObject(X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, C.X509_CRL_DIST_POINTS,
+		value.pbData, value.cbData, 0, unsafe.Pointer(&info[0]), &lenInfo)
+	if status == 0 {
+		return nil, GetLastError()
+	}
+	distInfos = (C.PCRL_DIST_POINTS_INFO)(unsafe.Pointer(&info[0]))
+	for i := 0; i < int(distInfos.cDistPoint); i++ {
+		certAltInfo := C.get_dist_point(distInfos, C.int(i))
+		for j := 0; j < int(certAltInfo.cAltEntry); j++ {
+			crl := C.get_dist_point_url(certAltInfo, C.int(j))
+			crlInfo := Utf16Decode(unsafe.Pointer(crl))
+			crls = append(crls, crlInfo)
+		}
+	}
+
+	return crls, nil
+}
+
+func (cert CertContext) getExtensionByOid(oid string) (*CertExtension, error) {
+	extLen := cert.getExtensionLen()
+	var retIdx *CertExtension
+	for i := 0; i < extLen; i++ {
+		ext, err := cert.getExtension(i)
+		if err != nil {
+			return nil, err
+		}
+		if ext.getOID() == oid {
+			retIdx = ext
+		}
+	}
+	if retIdx == nil {
+		return nil, errors.New("oid not found")
+	}
+	return retIdx, nil
+}
+
+func (cert CertContext) getNotBefore() time.Time {
+	info := cert.getCertInfo()
+	lowdatetime := uint64(info.NotBefore.dwLowDateTime)
+	highdatetime := uint64(info.NotBefore.dwHighDateTime)
+
+	notBefore := highdatetime << 32
+	notBefore = notBefore + lowdatetime
+	timestamp := notBefore/(10000000) - 11644473600
+	return time.Unix(int64(timestamp), 0)
+}
+
+func (cert CertContext) getNotAfter() time.Time {
+	info := cert.getCertInfo()
+	lowdatetime := uint64(info.NotAfter.dwLowDateTime)
+	highdatetime := uint64(info.NotAfter.dwHighDateTime)
+
+	notBefore := highdatetime << 32
+	notBefore = notBefore + lowdatetime
+	timestamp := notBefore/(10000000) - 11644473600
+	return time.Unix(int64(timestamp), 0)
+}
+
+func (cert CertContext) getThumbprint() string {
+	test, err := CertGetCertificateContextProperty(&cert, CERT_HASH_PROP_ID)
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(test)
 }
 
 func CertNameToStr(nameBlob C.PCERT_NAME_BLOB, flag int) (*string, error) {
@@ -172,4 +296,22 @@ func CertFreeCertificateContext(cert *CertContext) error {
 		return fmt.Errorf("can't free cert context got error 0x%x", GetLastError())
 	}
 	return nil
+}
+
+func CertEnumCertificatesInStore(store *CertStore, ctx *CertContext) (*CertContext, error) {
+	if store == nil {
+		return nil, errors.New("store is nil")
+	}
+
+	var context C.PCCERT_CONTEXT
+	if ctx != nil {
+		context = *ctx.pCertContext
+	}
+
+	cert := C.CertEnumCertificatesInStore(*store.HCertStore, context)
+	if cert == nil {
+		return nil, GetLastError()
+	}
+
+	return &CertContext{pCertContext: &cert}, nil
 }

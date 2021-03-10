@@ -25,9 +25,11 @@ const (
 )
 
 var CRYPT_E_STREAM_MSG_NOT_READY = errors.New("CRYPT_E_STREAM_MSG_NOT_READY")
+var CRYPT_E_NOT_FOUND = errors.New("CRYPT_E_NOT_FOUND")
 
 var winAPIErrors = map[int]error{
 	0x80091010: CRYPT_E_STREAM_MSG_NOT_READY,
+	0x80092004: CRYPT_E_NOT_FOUND,
 }
 
 type CryptoProv struct {
@@ -55,17 +57,20 @@ func CryptImportPublicKeyInfoEx(prov *CryptoProv, context *CertContext) (*Key, e
 	return &Key{hCryptKey: &pubKey}, nil
 }
 
-func CryptAcquireContext(container string, flags uint) (*CryptoProv, error) {
+func CryptAcquireContext(container string, provName string, provType uint, flags uint) (*CryptoProv, error) {
 	var hProv C.HCRYPTPROV
 
-	var cont *C.char
+	var cont *C.char = nil
 	if container != "" {
 		cont = C.CString(container)
-	} else {
-		cont = nil
 	}
 
-	status := C.CryptAcquireContext(&hProv, cont, nil, PROV_GOST_2012_256, C.uint(flags))
+	var prov *C.char = nil
+	if provName != "" {
+		prov = C.CString(provName)
+	}
+
+	status := C.CryptAcquireContext(&hProv, cont, prov, C.uint(provType), C.uint(flags))
 	if status == 0 {
 		return nil, fmt.Errorf("can't acquire context got error 0x%x", GetLastError())
 	}

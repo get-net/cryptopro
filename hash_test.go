@@ -7,7 +7,7 @@ import (
 )
 
 func TestHash(t *testing.T) {
-	prov, err := CryptAcquireContext("", CRYPT_VERIFYCONTEXT)
+	prov, err := CryptAcquireContext("", "", PROV_GOST_2012_256, CRYPT_VERIFYCONTEXT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestHash(t *testing.T) {
 		t.Fatal(err)
 	}
 	hashVal := hex.EncodeToString(val)
-	if hashVal != "daa851262492b08b92642a9152707b30bdb084f3b1670a96fb3bada9e6ecc759" {
+	if hashVal != "ea9785e97782eaccdf99806954ba366f3aad6e934e45e6084a9276a3149f53d2" {
 		t.Fatal("got hash ", hashVal)
 	}
 
