@@ -1,8 +1,84 @@
 package cryptopro
 
 import (
+	"io/ioutil"
+	"net/http"
 	"testing"
 )
+
+func TestCertGetIssuer(t *testing.T) {
+	store, err := CertOpenSystemStore("MY")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cert, err := CertFindCertificateInStore(store, "39da49123dbe70e953f394074d586eb692f3328e", CERT_FIND_SHA1_HASH)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	issuerStr := cert.Issuer
+
+	accessInfo, err := cert.getExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authInfoAccess, err := accessInfo.getAuthorityInfoAccess()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var certUrl string
+
+	for _, info := range authInfoAccess {
+		t.Log("Got Info Access", info.Oid, info.Info)
+		if info.Oid == "1.3.6.1.5.5.7.48.2" {
+			certUrl = info.Info
+		}
+	}
+
+	if certUrl != "" {
+		resp, err := http.Get(certUrl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+
+		issuerCert, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = CertAddEncodedCertificateToStore(store, issuerCert, CERT_STORE_ADD_NEW)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Logf("Search issuer %s", issuerStr)
+	issuerCert, err := CertFindCertificateInStore(store, issuerStr, CERT_FIND_SUBJECT_STR)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("Got issuer cert %s", issuerCert.Subject)
+
+	err = CertFreeCertificateContext(cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CertFreeCertificateContext(issuerCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CertCloseStore(store, CERT_CLOSE_STORE_CHECK_FLAG)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestCertGetInfo(t *testing.T) {
 
@@ -35,7 +111,7 @@ func TestCertGetInfo(t *testing.T) {
 		t.Log(test.getOID())
 	}
 
-	distPoint, err := cert.getExtensionByOid(X509_CRL_DIST_POINTS)
+	distPoint, err := cert.getExtensionByOid(szOID_CRL_DIST_POINTS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,6 +122,20 @@ func TestCertGetInfo(t *testing.T) {
 
 	for _, crl := range crls {
 		t.Log(crl)
+	}
+
+	accessInfo, err := cert.getExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authInfoAccess, err := accessInfo.getAuthorityInfoAccess()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, info := range authInfoAccess {
+		t.Log("Got Info Access", info.Oid, info.Info)
 	}
 
 	err = CertFreeCertificateContext(cert)

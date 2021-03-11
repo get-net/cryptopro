@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	"unicode/utf16"
 	"unsafe"
 )
 
@@ -35,15 +34,13 @@ const (
 )
 
 const (
-	szOID_CRL_DIST_POINTS = C.szOID_CRL_DIST_POINTS
+	szOID_CRL_DIST_POINTS       = C.szOID_CRL_DIST_POINTS
+	szOID_AUTHORITY_INFO_ACCESS = C.szOID_AUTHORITY_INFO_ACCESS
 )
 
 const (
 	CERT_STORE_ADD_ALWAYS = C.CERT_STORE_ADD_ALWAYS
-)
-
-const (
-	X509_CRL_DIST_POINTS = "2.5.29.31"
+	CERT_STORE_ADD_NEW    = C.CERT_STORE_ADD_NEW
 )
 
 type CertContext struct {
@@ -61,12 +58,9 @@ type CertExtension struct {
 	pCertExtension C.PCERT_EXTENSION
 }
 
-func Utf16Decode(ptr unsafe.Pointer) string {
-	const maxRunes = 1<<30 - 1
-
-	sz := C.wcslen((C.LPWSTR)(ptr)) * 2
-	wstr := (*[maxRunes]uint16)(ptr)[:sz]
-	return string(utf16.Decode(wstr))
+type AuthorityInfoAccess struct {
+	Oid  string
+	Info string
 }
 
 func (cert CertContext) getCertBlob() *C.CERT_BLOB {
@@ -80,7 +74,7 @@ func (cert CertContext) getCertInfo() C.PCERT_INFO {
 
 func (cert CertContext) getCertName() string {
 	context := *cert.pCertContext
-	name, err := CertNameToStr(&context.pCertInfo.Subject, CERT_X500_NAME_STR)
+	name, err := CertNameToStr(&context.pCertInfo.Subject, CERT_SIMPLE_NAME_STR)
 	if err != nil {
 		return ""
 	}
@@ -132,12 +126,50 @@ func (ce CertExtension) getCrlDistPoints() ([]string, error) {
 		certAltInfo := C.get_dist_point(distInfos, C.int(i))
 		for j := 0; j < int(certAltInfo.cAltEntry); j++ {
 			crl := C.get_dist_point_url(certAltInfo, C.int(j))
-			crlInfo := Utf16Decode(unsafe.Pointer(crl))
+			crlInfo, err := Decode(unsafe.Pointer(crl))
+			if err != nil {
+				return nil, err
+			}
 			crls = append(crls, crlInfo)
 		}
 	}
 
 	return crls, nil
+}
+
+func (ce CertExtension) getAuthorityInfoAccess() ([]AuthorityInfoAccess, error) {
+	var infoAccess C.PCERT_AUTHORITY_INFO_ACCESS
+	var lenInfo C.uint
+
+	var res []AuthorityInfoAccess
+	value := ce.pCertExtension.Value
+	status := C.CryptDecodeObject(X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, C.X509_AUTHORITY_INFO_ACCESS,
+		value.pbData, value.cbData, 0, nil, &lenInfo)
+	if status == 0 {
+		return nil, GetLastError()
+	}
+	info := make([]byte, int(lenInfo))
+	status = C.CryptDecodeObject(X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, C.X509_AUTHORITY_INFO_ACCESS,
+		value.pbData, value.cbData, 0, unsafe.Pointer(&info[0]), &lenInfo)
+	if status == 0 {
+		return nil, GetLastError()
+	}
+	infoAccess = (C.PCERT_AUTHORITY_INFO_ACCESS)(unsafe.Pointer(&info[0]))
+	for i := 0; i < int(infoAccess.cAccDescr); i++ {
+		accessDescription := C.get_access_method(infoAccess, C.int(i))
+		oid := C.GoString((*C.char)(unsafe.Pointer(accessDescription)))
+		value := C.get_access_location(infoAccess, C.int(i))
+		info, err := Decode(unsafe.Pointer(value))
+		if err != nil {
+			return nil, GetLastError()
+		}
+		res = append(res, AuthorityInfoAccess{
+			Oid:  oid,
+			Info: info,
+		})
+	}
+
+	return res, nil
 }
 
 func (cert CertContext) getExtensionByOid(oid string) (*CertExtension, error) {
@@ -218,31 +250,37 @@ func CertFindCertificateInStore(store *CertStore, searchParam string, findType u
 		return nil, errors.New("store is nil")
 	}
 
-	var hash C.CRYPT_INTEGER_BLOB
+	var pointer unsafe.Pointer
 
-	hashBytes, err := hex.DecodeString(searchParam)
-	if err != nil {
-		return nil, err
-	}
+	switch findType {
+	case CERT_FIND_SHA1_HASH:
+		var hash C.CRYPT_INTEGER_BLOB
+		hashBytes, err := hex.DecodeString(searchParam)
+		if err != nil {
+			return nil, err
+		}
 
-	hash.cbData = C.uint(len(hashBytes))
-	hash.pbData = (*C.uchar)(C.CBytes(hashBytes))
-
-	if err != nil {
-		return nil, err
+		hash.cbData = C.uint(len(hashBytes))
+		hash.pbData = (*C.uchar)(C.CBytes(hashBytes))
+		pointer = unsafe.Pointer(&hash)
+	case CERT_FIND_SUBJECT_STR_A:
+		bytes := []byte(searchParam)
+		pointer = unsafe.Pointer(&bytes[0])
+	default:
+		return nil, errors.New("not supported find type")
 	}
 
 	p := C.CertFindCertificateInStore(*store.HCertStore, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING, 0,
-		C.uint(findType), unsafe.Pointer(&hash), nil)
+		C.uint(findType), pointer, nil)
 	if p == nil {
-		return nil, errors.New("certificate not found")
+		return nil, GetLastError()
 	}
 
-	issuer, err := CertNameToStr(&p.pCertInfo.Issuer, CERT_X500_NAME_STR)
+	issuer, err := CertNameToStr(&p.pCertInfo.Issuer, CERT_SIMPLE_NAME_STR)
 	if err != nil {
 		return nil, err
 	}
-	subject, err := CertNameToStr(&p.pCertInfo.Subject, CERT_X500_NAME_STR)
+	subject, err := CertNameToStr(&p.pCertInfo.Subject, CERT_SIMPLE_NAME_STR)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +305,21 @@ func CertGetSubjectCertificateFromStore(store *CertStore, data []byte) (*CertCon
 func CertAddCertificateContextToStore(store *CertStore, cert *CertContext, addDisp uint) error {
 	status := C.CertAddCertificateContextToStore(*store.HCertStore, *cert.pCertContext, C.uint(addDisp), nil)
 	if status == 0 {
-		return fmt.Errorf("сan`t add certificate to store got error 0x%x", GetLastError())
+		return GetLastError()
+	}
+	return nil
+}
+
+func CertAddEncodedCertificateToStore(store *CertStore, encCert []byte, addDisp uint) error {
+	lenCert := len(encCert)
+	if lenCert == 0 {
+		return errors.New("encCert empty")
+	}
+
+	status := C.CertAddEncodedCertificateToStore(*store.HCertStore, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING,
+		(*C.uchar)(&encCert[0]), C.uint(lenCert), C.uint(addDisp), nil)
+	if status == 0 {
+		return GetLastError()
 	}
 	return nil
 }
