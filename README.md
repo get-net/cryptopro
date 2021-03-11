@@ -4,9 +4,12 @@ Golang binding for certificated russian GOST Crypto Provider [CryptoPro CSP](htt
 
 ## Now supported 
 
-* Open Close Store
-* List ceritificates
-* Find Certificate by SHA1 signature
+* Open store
+* Close store
+* List certificates
+* Find certificate by SHA1 signature
+* Find certificate by Subject name
+* Add encoded certificate to store  
 * Low Level Sign
 * Low Level Verify
 * Low Level Encrypt
@@ -14,7 +17,8 @@ Golang binding for certificated russian GOST Crypto Provider [CryptoPro CSP](htt
 * Generate Hash
 * Sign Hash
 * Get CRL's
-
+* Get Issuer Certificate URL
+* Get OCSP URL
 
 ### TODO
 
