@@ -101,6 +101,9 @@ func TestCertGetInfo(t *testing.T) {
 	name := cert.GetCertName()
 	t.Logf(name)
 
+	serialNumber := cert.GetSerialNumber()
+	t.Logf("Serial Number %s", serialNumber)
+
 	extLen := cert.GetExtensionLen()
 
 	for i := 0; i < extLen; i++ {

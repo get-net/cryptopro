@@ -220,6 +220,12 @@ func (cert CertContext) GetThumbprint() string {
 	return hex.EncodeToString(test)
 }
 
+func (cert CertContext) GetSerialNumber() []byte {
+	certInfo := cert.GetCertInfo()
+	dataLen := certInfo.SerialNumber.cbData
+	return C.GoBytes(unsafe.Pointer(certInfo.SerialNumber.pbData), C.int(dataLen))
+}
+
 func CertNameToStr(nameBlob C.PCERT_NAME_BLOB, flag int) (*string, error) {
 	size := C.CertNameToStr(X509_ASN_ENCODING, nameBlob, C.uint(flag), nil, 0)
 
