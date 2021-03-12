@@ -44,9 +44,6 @@ const (
 )
 
 type CertContext struct {
-	Issuer       string
-	Subject      string
-	SHA1Hash     string
 	pCertContext *C.PCCERT_CONTEXT
 }
 
@@ -75,6 +72,15 @@ func (cert CertContext) GetCertInfo() C.PCERT_INFO {
 func (cert CertContext) GetCertName() string {
 	context := *cert.pCertContext
 	name, err := CertNameToStr(&context.pCertInfo.Subject, CERT_SIMPLE_NAME_STR)
+	if err != nil {
+		return ""
+	}
+	return *name
+}
+
+func (cert CertContext) GetIssuer() string {
+	context := *cert.pCertContext
+	name, err := CertNameToStr(&context.pCertInfo.Issuer, CERT_SIMPLE_NAME_STR)
 	if err != nil {
 		return ""
 	}
@@ -282,19 +288,7 @@ func CertFindCertificateInStore(store *CertStore, searchParam string, findType u
 		return nil, GetLastError()
 	}
 
-	issuer, err := CertNameToStr(&p.pCertInfo.Issuer, CERT_SIMPLE_NAME_STR)
-	if err != nil {
-		return nil, err
-	}
-	subject, err := CertNameToStr(&p.pCertInfo.Subject, CERT_SIMPLE_NAME_STR)
-	if err != nil {
-		return nil, err
-	}
-
 	return &CertContext{
-		Issuer:       *issuer,
-		Subject:      *subject,
-		SHA1Hash:     searchParam,
 		pCertContext: &p,
 	}, nil
 }

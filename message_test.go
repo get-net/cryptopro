@@ -196,7 +196,7 @@ func TestCryptSignMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("got cert\n issuer: %s\n subject: %s\n", cert.Issuer, cert.Subject)
+	t.Logf("got cert\n issuer: %s\n subject: %s\n", cert.GetIssuer(), cert.GetCertName())
 
 	_, err = CryptAquireCertificatePrivateKey(cert)
 	if err != nil {

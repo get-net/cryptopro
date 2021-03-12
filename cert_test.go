@@ -18,7 +18,7 @@ func TestCertGetIssuer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	issuerStr := cert.Issuer
+	issuerStr := cert.GetIssuer()
 
 	accessInfo, err := cert.GetExtensionByOid(SzOID_AUTHORITY_INFO_ACCESS)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestCertGetIssuer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("Got issuer cert %s", issuerCert.Subject)
+	t.Logf("Got issuer cert %s", issuerCert.GetCertName())
 
 	err = CertFreeCertificateContext(cert)
 	if err != nil {
@@ -101,6 +101,8 @@ func TestCertGetInfo(t *testing.T) {
 	t.Logf("SHA1 Hash %s", sha1Hash)
 	name := cert.GetCertName()
 	t.Logf(name)
+	issuer := cert.GetIssuer()
+	t.Logf(issuer)
 
 	serialNumber := cert.GetSerialNumber()
 	t.Logf("Serial Number 0x%s", hex.EncodeToString(serialNumber))
