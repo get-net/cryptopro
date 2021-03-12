@@ -1,6 +1,7 @@
 package cryptopro
 
 import (
+	"encoding/hex"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -102,7 +103,7 @@ func TestCertGetInfo(t *testing.T) {
 	t.Logf(name)
 
 	serialNumber := cert.GetSerialNumber()
-	t.Logf("Serial Number %s", serialNumber)
+	t.Logf("Serial Number 0x%s", hex.EncodeToString(serialNumber))
 
 	extLen := cert.GetExtensionLen()
 
