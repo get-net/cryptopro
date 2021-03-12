@@ -19,7 +19,7 @@ func TestCertGetIssuer(t *testing.T) {
 
 	issuerStr := cert.Issuer
 
-	accessInfo, err := cert.GetExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
+	accessInfo, err := cert.GetExtensionByOid(SzOID_AUTHORITY_INFO_ACCESS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestCertGetInfo(t *testing.T) {
 		t.Log(test.GetOID())
 	}
 
-	distPoint, err := cert.GetExtensionByOid(szOID_CRL_DIST_POINTS)
+	distPoint, err := cert.GetExtensionByOid(SzOID_CRL_DIST_POINTS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestCertGetInfo(t *testing.T) {
 		t.Log(crl)
 	}
 
-	accessInfo, err := cert.GetExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
+	accessInfo, err := cert.GetExtensionByOid(SzOID_AUTHORITY_INFO_ACCESS)
 	if err != nil {
 		t.Fatal(err)
 	}
