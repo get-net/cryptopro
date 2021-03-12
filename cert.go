@@ -63,16 +63,16 @@ type AuthorityInfoAccess struct {
 	Info string
 }
 
-func (cert CertContext) getCertBlob() *C.CERT_BLOB {
+func (cert CertContext) GetCertBlob() *C.CERT_BLOB {
 	return C.get_blob(*cert.pCertContext)
 }
 
-func (cert CertContext) getCertInfo() C.PCERT_INFO {
+func (cert CertContext) GetCertInfo() C.PCERT_INFO {
 	var pCertContext C.PCCERT_CONTEXT = *cert.pCertContext
 	return pCertContext.pCertInfo
 }
 
-func (cert CertContext) getCertName() string {
+func (cert CertContext) GetCertName() string {
 	context := *cert.pCertContext
 	name, err := CertNameToStr(&context.pCertInfo.Subject, CERT_SIMPLE_NAME_STR)
 	if err != nil {
@@ -81,8 +81,8 @@ func (cert CertContext) getCertName() string {
 	return *name
 }
 
-func (cert CertContext) getExtension(index int) (*CertExtension, error) {
-	pcertInfo := cert.getCertInfo()
+func (cert CertContext) GetExtension(index int) (*CertExtension, error) {
+	pcertInfo := cert.GetCertInfo()
 
 	extLen := int(pcertInfo.cExtension)
 	if index >= extLen {
@@ -94,16 +94,16 @@ func (cert CertContext) getExtension(index int) (*CertExtension, error) {
 	return &CertExtension{pCertExtension: ext}, nil
 }
 
-func (cert CertContext) getExtensionLen() int {
-	pcertInfo := cert.getCertInfo()
+func (cert CertContext) GetExtensionLen() int {
+	pcertInfo := cert.GetCertInfo()
 	return int(pcertInfo.cExtension)
 }
 
-func (ce CertExtension) getOID() string {
+func (ce CertExtension) GetOID() string {
 	return C.GoString((*C.char)(unsafe.Pointer(ce.pCertExtension.pszObjId)))
 }
 
-func (ce CertExtension) getCrlDistPoints() ([]string, error) {
+func (ce CertExtension) GetCrlDistPoints() ([]string, error) {
 	var distInfos C.PCRL_DIST_POINTS_INFO
 	var lenInfo C.uint
 
@@ -137,7 +137,7 @@ func (ce CertExtension) getCrlDistPoints() ([]string, error) {
 	return crls, nil
 }
 
-func (ce CertExtension) getAuthorityInfoAccess() ([]AuthorityInfoAccess, error) {
+func (ce CertExtension) GetAuthorityInfoAccess() ([]AuthorityInfoAccess, error) {
 	var infoAccess C.PCERT_AUTHORITY_INFO_ACCESS
 	var lenInfo C.uint
 
@@ -172,15 +172,15 @@ func (ce CertExtension) getAuthorityInfoAccess() ([]AuthorityInfoAccess, error) 
 	return res, nil
 }
 
-func (cert CertContext) getExtensionByOid(oid string) (*CertExtension, error) {
-	extLen := cert.getExtensionLen()
+func (cert CertContext) GetExtensionByOid(oid string) (*CertExtension, error) {
+	extLen := cert.GetExtensionLen()
 	var retIdx *CertExtension
 	for i := 0; i < extLen; i++ {
-		ext, err := cert.getExtension(i)
+		ext, err := cert.GetExtension(i)
 		if err != nil {
 			return nil, err
 		}
-		if ext.getOID() == oid {
+		if ext.GetOID() == oid {
 			retIdx = ext
 		}
 	}
@@ -190,8 +190,8 @@ func (cert CertContext) getExtensionByOid(oid string) (*CertExtension, error) {
 	return retIdx, nil
 }
 
-func (cert CertContext) getNotBefore() time.Time {
-	info := cert.getCertInfo()
+func (cert CertContext) GetNotBefore() time.Time {
+	info := cert.GetCertInfo()
 	lowdatetime := uint64(info.NotBefore.dwLowDateTime)
 	highdatetime := uint64(info.NotBefore.dwHighDateTime)
 
@@ -201,8 +201,8 @@ func (cert CertContext) getNotBefore() time.Time {
 	return time.Unix(int64(timestamp), 0)
 }
 
-func (cert CertContext) getNotAfter() time.Time {
-	info := cert.getCertInfo()
+func (cert CertContext) GetNotAfter() time.Time {
+	info := cert.GetCertInfo()
 	lowdatetime := uint64(info.NotAfter.dwLowDateTime)
 	highdatetime := uint64(info.NotAfter.dwHighDateTime)
 
@@ -212,7 +212,7 @@ func (cert CertContext) getNotAfter() time.Time {
 	return time.Unix(int64(timestamp), 0)
 }
 
-func (cert CertContext) getThumbprint() string {
+func (cert CertContext) GetThumbprint() string {
 	test, err := CertGetCertificateContextProperty(&cert, CERT_HASH_PROP_ID)
 	if err != nil {
 		return ""

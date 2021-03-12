@@ -19,12 +19,12 @@ func TestCertGetIssuer(t *testing.T) {
 
 	issuerStr := cert.Issuer
 
-	accessInfo, err := cert.getExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
+	accessInfo, err := cert.GetExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	authInfoAccess, err := accessInfo.getAuthorityInfoAccess()
+	authInfoAccess, err := accessInfo.GetAuthorityInfoAccess()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,30 +92,30 @@ func TestCertGetInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	notBefore := cert.getNotBefore()
-	notAfter := cert.getNotAfter()
+	notBefore := cert.GetNotBefore()
+	notAfter := cert.GetNotAfter()
 	t.Logf("NotBefore %s - NotAfter %s", notBefore, notAfter)
 
-	sha1Hash := cert.getThumbprint()
+	sha1Hash := cert.GetThumbprint()
 	t.Logf("SHA1 Hash %s", sha1Hash)
-	name := cert.getCertName()
+	name := cert.GetCertName()
 	t.Logf(name)
 
-	extLen := cert.getExtensionLen()
+	extLen := cert.GetExtensionLen()
 
 	for i := 0; i < extLen; i++ {
-		test, err := cert.getExtension(i)
+		test, err := cert.GetExtension(i)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Log(test.getOID())
+		t.Log(test.GetOID())
 	}
 
-	distPoint, err := cert.getExtensionByOid(szOID_CRL_DIST_POINTS)
+	distPoint, err := cert.GetExtensionByOid(szOID_CRL_DIST_POINTS)
 	if err != nil {
 		t.Fatal(err)
 	}
-	crls, err := distPoint.getCrlDistPoints()
+	crls, err := distPoint.GetCrlDistPoints()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,12 +124,12 @@ func TestCertGetInfo(t *testing.T) {
 		t.Log(crl)
 	}
 
-	accessInfo, err := cert.getExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
+	accessInfo, err := cert.GetExtensionByOid(szOID_AUTHORITY_INFO_ACCESS)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	authInfoAccess, err := accessInfo.getAuthorityInfoAccess()
+	authInfoAccess, err := accessInfo.GetAuthorityInfoAccess()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestCertGetInfo(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		//log.Print(ctx.getCertName())
+		//log.Print(ctx.GetCertName())
 		prevCtx = ctx
 	}
 

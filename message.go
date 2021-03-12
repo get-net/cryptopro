@@ -190,7 +190,7 @@ func InitSignedInfo(cert *CertContext) (*msgEncodeInfo, error) {
 	signedEncodeInfo.cSigners = 1
 	signedEncodeInfo.rgSigners = signerEncodeInfo
 	signedEncodeInfo.cCertEncoded = 1
-	signedEncodeInfo.rgCertEncoded = cert.getCertBlob()
+	signedEncodeInfo.rgCertEncoded = cert.GetCertBlob()
 	signedEncodeInfo.rgCrlEncoded = nil
 
 	return &msgEncodeInfo{signEncodeInfo: &signedEncodeInfo}, nil

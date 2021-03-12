@@ -164,7 +164,7 @@ func TestCryptDecryptMessage(t *testing.T) {
 				t.Log("Decrypt Context Success")
 			}
 
-			t.Log(checkCert.getCertName())
+			t.Log(checkCert.GetCertName())
 			err = CertFreeCertificateContext(checkCert)
 			if err != nil {
 				t.Fatal(err)
@@ -341,9 +341,9 @@ func TestCryptVerifyMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log(checkCert.getCertName())
+	t.Log(checkCert.GetCertName())
 
-	status, err := CryptMsgControl(decMsg, 0, CMSG_CTRL_VERIFY_SIGNATURE, unsafe.Pointer(checkCert.getCertInfo()))
+	status, err := CryptMsgControl(decMsg, 0, CMSG_CTRL_VERIFY_SIGNATURE, unsafe.Pointer(checkCert.GetCertInfo()))
 	if err != nil {
 		t.Fatal(err)
 	}
