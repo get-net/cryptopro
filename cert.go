@@ -323,7 +323,7 @@ func CertAddEncodedCertificateToStore(store *CertStore, encCert []byte, addDisp 
 		return nil, GetLastError()
 	}
 	return &CertContext{
-		pCertContext: pCert,
+		pCertContext: &pCert,
 	}, nil
 }
 
