@@ -310,18 +310,21 @@ func CertAddCertificateContextToStore(store *CertStore, cert *CertContext, addDi
 	return nil
 }
 
-func CertAddEncodedCertificateToStore(store *CertStore, encCert []byte, addDisp uint) error {
+func CertAddEncodedCertificateToStore(store *CertStore, encCert []byte, addDisp uint) (*CertContext, error) {
+	var pCert C.PCCERT_CONTEXT
 	lenCert := len(encCert)
 	if lenCert == 0 {
-		return errors.New("encCert empty")
+		return nil, errors.New("encCert empty")
 	}
 
 	status := C.CertAddEncodedCertificateToStore(*store.HCertStore, X509_ASN_ENCODING|PKCS_7_ASN_ENCODING,
-		(*C.uchar)(&encCert[0]), C.uint(lenCert), C.uint(addDisp), nil)
+		(*C.uchar)(&encCert[0]), C.uint(lenCert), C.uint(addDisp), &pCert)
 	if status == 0 {
-		return GetLastError()
+		return nil, GetLastError()
 	}
-	return nil
+	return &CertContext{
+		pCertContext: pCert,
+	}, nil
 }
 
 func CertGetCertificateContextProperty(ctx *CertContext, propId uint) ([]byte, error) {

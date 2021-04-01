@@ -51,10 +51,12 @@ func TestCertGetIssuer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = CertAddEncodedCertificateToStore(store, issuerCert, CERT_STORE_ADD_NEW)
+		context, err := CertAddEncodedCertificateToStore(store, issuerCert, CERT_STORE_ADD_NEW)
+		defer CertFreeCertificateContext(context)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 	}
 
 	t.Logf("Search issuer %s", issuerStr)
