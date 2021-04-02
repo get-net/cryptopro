@@ -10,7 +10,6 @@ package cryptopro
 import "C"
 import (
 	"errors"
-	"fmt"
 )
 
 func CryptVerifySignature(hHash *CryptoHash, signature []byte, pubKey *Key, flags uint) (bool, error) {
@@ -24,7 +23,7 @@ func CryptVerifySignature(hHash *CryptoHash, signature []byte, pubKey *Key, flag
 
 	status := C.CryptVerifySignature(*hHash.hHash, (*C.uchar)(&signature[0]), C.uint(len(signature)), *pubKey.hCryptKey, nil, C.uint(flags))
 	if status == 0 {
-		return false, fmt.Errorf("can't verify hash got error 0x%x", GetLastError())
+		return false, GetLastError()
 	}
 
 	return true, nil

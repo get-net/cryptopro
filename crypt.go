@@ -12,7 +12,6 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"strconv"
 )
 
 const (
@@ -41,7 +40,7 @@ func GetLastError() error {
 	codeError := int(C.GetLastError())
 	err := winAPIErrors[codeError]
 	if err == nil {
-		err = errors.New(strconv.Itoa(codeError))
+		err = fmt.Errorf("0x%x", codeError)
 	}
 	return err
 }
