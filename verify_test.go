@@ -16,7 +16,7 @@ func TestCryptVerifyHash(t *testing.T) {
 		t.Fatal("Can't open MY store")
 	}
 
-	client, err := CertFindCertificateInStore(store, "365050de109cbe26a1f1a09b5a10c6485d6bbe56",
+	client, err := CertFindCertificateInStore(store, "39da49123dbe70e953f394074d586eb692f3328e",
 		CERT_FIND_SHA1_HASH)
 
 	if err != nil {
@@ -28,12 +28,12 @@ func TestCryptVerifyHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	key, err := CryptGetUserKey(context, AT_KEYEXCHANGE)
-	if err != nil {
-		t.Fatal(err)
-	}
+	//key, err := CryptGetUserKey(context, AT_KEYEXCHANGE)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
 
-	hash, err := CreateCryptHash(context, CALG_GR3411)
+	hash, err := CreateCryptHash(context, CALG_GR3411_2012_256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,12 @@ func TestCryptVerifyHash(t *testing.T) {
 
 	fmt.Printf("signature: %s\n", hex.EncodeToString(sigBytes))
 
-	status, err := CryptVerifySignature(hash, sigBytes, key, 0)
+	pubKey, err := client.CryptImportPublicKeyInfo(context)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := CryptVerifySignature(hash, sigBytes, pubKey, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
