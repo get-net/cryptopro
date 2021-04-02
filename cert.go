@@ -100,6 +100,17 @@ func (cert CertContext) GetExtension(index int) (*CertExtension, error) {
 	return &CertExtension{pCertExtension: ext}, nil
 }
 
+func (cert CertContext) CryptImportPublicKeyInfo(prov *CryptoProv) (*Key, error) {
+	var hCryptKey C.HCRYPTKEY
+	certInfo := cert.GetCertInfo()
+	status := C.CryptImportPublicKeyInfo(*prov.hCryptoProv, PKCS_7_ASN_ENCODING|X509_ASN_ENCODING,
+		&certInfo.SubjectPublicKeyInfo, &hCryptKey)
+	if status == 0 {
+		return nil, GetLastError()
+	}
+	return &Key{hCryptKey: &hCryptKey}, nil
+}
+
 func (cert CertContext) GetExtensionLen() int {
 	pcertInfo := cert.GetCertInfo()
 	return int(pcertInfo.cExtension)

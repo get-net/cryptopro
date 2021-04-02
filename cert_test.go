@@ -169,3 +169,35 @@ func TestCertGetInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCryptImportPublicKeyInfo(t *testing.T) {
+	prov, err := CryptAcquireContext("", "", PROV_GOST_2012_256, CRYPT_VERIFYCONTEXT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := CertOpenSystemStore("MY")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cert, err := CertFindCertificateInStore(store, "39da49123dbe70e953f394074d586eb692f3328e", CERT_FIND_SHA1_HASH)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = cert.CryptImportPublicKeyInfo(prov)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CertFreeCertificateContext(cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CertCloseStore(store, CERT_CLOSE_STORE_CHECK_FLAG)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
