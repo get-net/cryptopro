@@ -65,6 +65,14 @@ func (cert CertContext) GetCertBlob() *C.CERT_BLOB {
 	return C.get_blob(*cert.pCertContext)
 }
 
+func (cert CertContext) GetEncodedCert() []byte {
+	var blob *C.CERT_BLOB
+
+	blob = cert.GetCertBlob()
+
+	return C.GoBytes(unsafe.Pointer(blob.pbData), C.int(blob.cbData))
+}
+
 func (cert CertContext) GetCertInfo() C.PCERT_INFO {
 	var pCertContext C.PCCERT_CONTEXT = *cert.pCertContext
 	return pCertContext.pCertInfo

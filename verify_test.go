@@ -3,6 +3,7 @@ package cryptopro
 import (
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"testing"
 )
 
@@ -55,12 +56,48 @@ func TestCryptVerifyHash(t *testing.T) {
 
 	fmt.Printf("signature: %s\n", hex.EncodeToString(sigBytes))
 
-	pubKey, err := client.CryptImportPublicKeyInfo(context)
+	err = CertFreeCertificateContext(client)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	status, err := CryptVerifySignature(hash, sigBytes, pubKey, 0)
+	err = CertCloseStore(store, CERT_CLOSE_STORE_CHECK_FLAG)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prov, err := CryptAcquireContext("", "", PROV_GOST_2012_256, CRYPT_VERIFYCONTEXT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newHash, err := CreateCryptHash(prov, CALG_GR3411_2012_256)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = newHash.CryptHashData(capBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	memStore, err := CertMemOpenStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cerBytes, err := ioutil.ReadFile("client.crt")
+	cert, err := CertAddEncodedCertificateToStore(memStore, cerBytes, CERT_STORE_ADD_USE_EXISTING)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKey, err := cert.CryptImportPublicKeyInfo(prov)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := CryptVerifySignature(newHash, sigBytes, pubKey, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

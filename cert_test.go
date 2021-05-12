@@ -2,6 +2,7 @@ package cryptopro
 
 import (
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -108,6 +109,14 @@ func TestCertGetInfo(t *testing.T) {
 
 	serialNumber := cert.GetSerialNumber()
 	t.Logf("Serial Number 0x%s", hex.EncodeToString(serialNumber))
+
+	blob := cert.GetEncodedCert()
+	if blob != nil {
+		err := ioutil.WriteFile(fmt.Sprintf("%s.crt", sha1Hash), blob, 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	extLen := cert.GetExtensionLen()
 
