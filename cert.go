@@ -87,9 +87,27 @@ func (cert CertContext) GetCertName() string {
 	return *name
 }
 
+func (cert CertContext) GetCertNameX500() string {
+	context := *cert.pCertContext
+	name, err := CertNameToStr(&context.pCertInfo.Subject, CERT_X500_NAME_STR)
+	if err != nil {
+		return ""
+	}
+	return *name
+}
+
 func (cert CertContext) GetIssuer() string {
 	context := *cert.pCertContext
 	name, err := CertNameToStr(&context.pCertInfo.Issuer, CERT_SIMPLE_NAME_STR)
+	if err != nil {
+		return ""
+	}
+	return *name
+}
+
+func (cert CertContext) GetIssuerX500() string {
+	context := *cert.pCertContext
+	name, err := CertNameToStr(&context.pCertInfo.Issuer, CERT_X500_NAME_STR)
 	if err != nil {
 		return ""
 	}
