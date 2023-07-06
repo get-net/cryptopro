@@ -21,17 +21,19 @@ func TestCryptSignHash(t *testing.T) {
 
 	client, err := CertFindCertificateInStore(store, "365050de109cbe26a1f1a09b5a10c6485d6bbe56",
 		CERT_FIND_SHA1_HASH)
-
+	defer CertFreeCertificateContext(client)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	context, err := CryptAquireCertificatePrivateKey(client)
+	defer context.Release()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	hash, err := CreateCryptHash(context, CALG_GR3411)
+	defer hash.DestoryHash()
 	if err != nil {
 		t.Fatal(err)
 	}

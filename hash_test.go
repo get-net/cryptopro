@@ -41,4 +41,9 @@ func TestHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	err = prov.Release()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 }

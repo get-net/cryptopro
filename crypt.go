@@ -76,3 +76,11 @@ func CryptAcquireContext(container string, provName string, provType uint, flags
 
 	return &CryptoProv{hCryptoProv: &hProv}, nil
 }
+
+func (cProv CryptoProv) Release() error {
+	status := C.CryptReleaseContext(*cProv.hCryptoProv, 0)
+	if status == 0 {
+		return fmt.Errorf("can't release context got error 0x%x", GetLastError())
+	}
+	return nil
+}
