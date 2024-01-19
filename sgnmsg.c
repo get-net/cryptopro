@@ -43,16 +43,16 @@ int sign_message_cades_bes(PCCERT_CONTEXT pCertContext , unsigned int dwFlag, BY
     // получаем цепочку сертификатов
     CERT_CHAIN_PARA             ChainPara = { sizeof(ChainPara) };
     PCCERT_CHAIN_CONTEXT        pChainContext = NULL;
-    if (CertGetCertificateChain(NULL, pCertContext, NULL, NULL, &ChainPara, 0, NULL, &pChainContext)) {
-        PCCERT_CONTEXT certs[pChainContext->rgpChain[0]->cElement];
-        for (DWORD i = 0; i < pChainContext->rgpChain[0]->cElement-1; ++i) {
-            certs[i]=pChainContext->rgpChain[0]->rgpElement[i]->pCertContext;
-        }
+    CertGetCertificateChain(NULL, pCertContext, NULL, NULL, &ChainPara, 0, NULL, &pChainContext);
 
-        if (sizeof(certs) > 0) {
-            signPara.cMsgCert = pChainContext->rgpChain[0]->cElement-1;
-            signPara.rgpMsgCert = &certs[0];
-        }
+    PCCERT_CONTEXT certs[pChainContext->rgpChain[0]->cElement];
+    for (DWORD i = 0; i < pChainContext->rgpChain[0]->cElement-1; ++i) {
+       certs[i]=pChainContext->rgpChain[0]->rgpElement[i]->pCertContext;
+    }
+
+    if (sizeof(certs) > 0) {
+       signPara.cMsgCert = pChainContext->rgpChain[0]->cElement-1;
+       signPara.rgpMsgCert = &certs[0];
     }
 
     const BYTE *pbToBeSigned[] = { message };
