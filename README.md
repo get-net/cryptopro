@@ -19,6 +19,7 @@ Golang binding for certificated russian GOST Crypto Provider [CryptoPro CSP](htt
 * Get CRL's
 * Get Issuer Certificate URL
 * Get OCSP URL
+* Simple CAdES-BES Sign
 
 ### TODO
 

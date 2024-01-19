@@ -4,6 +4,7 @@
 #include <string.h>
 #include <tchar.h>
 #include <CSP_WinCrypt.h>
+#include <cades.h>
 
 #include "sgnmsg.h"
 #include "_cgo_export.h"
@@ -27,199 +28,56 @@ const char* GetHashOid(PCCERT_CONTEXT pCert) {
 
 
 int sign_message_cades_bes(PCCERT_CONTEXT pCertContext , unsigned int dwFlag, BYTE* message, char* out, int *size) {
-    unsigned int dwKeySpec = 0;
-    int mustFree;
+    CRYPT_SIGN_MESSAGE_PARA signPara = { sizeof(signPara) };
+    signPara.dwMsgEncodingType = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
+    signPara.pSigningCert = pCertContext; // 0 for window
+    signPara.HashAlgorithm.pszObjId = (LPSTR) GetHashOid(pCertContext);
 
-    HCRYPTPROV hCryptProv;
-    if ( !CryptAcquireCertificatePrivateKey(pCertContext, CRYPT_ACQUIRE_CACHE_FLAG,NULL, &hCryptProv, &dwKeySpec, &mustFree) ) {
-        *size = sprintf(out,"Private key not acquired: %d", GetLastError());
-        CertFreeCertificateContext( pCertContext );
+    CADES_SIGN_PARA cadesSignPara = { sizeof(cadesSignPara) };
+    cadesSignPara.dwCadesType = CADES_BES;
+
+    CADES_SIGN_MESSAGE_PARA para = { sizeof(para) };
+    para.pSignMessagePara = &signPara;
+    para.pCadesSignPara = &cadesSignPara;
+
+    // получаем цепочку сертификатов
+    CERT_CHAIN_PARA             ChainPara = { sizeof(ChainPara) };
+    PCCERT_CHAIN_CONTEXT        pChainContext = NULL;
+    CertGetCertificateChain(NULL, pCertContext, NULL, NULL, &ChainPara, 0, NULL, &pChainContext);
+
+    PCCERT_CONTEXT certs[pChainContext->rgpChain[0]->cElement];
+    for (DWORD i = 0; i < pChainContext->rgpChain[0]->cElement-1; ++i) {
+        certs[i]=pChainContext->rgpChain[0]->rgpElement[i]->pCertContext;
+    }
+
+    if (sizeof(certs) > 0)
+    {
+        signPara.cMsgCert = pChainContext->rgpChain[0]->cElement-1;
+        signPara.rgpMsgCert = &certs[0];
+    }
+
+    const BYTE *pbToBeSigned[] = { message };
+    DWORD cbToBeSigned[] = { (DWORD)strlen(message) };
+
+    PCRYPT_DATA_BLOB pSignedMessage = 0;
+    if(!CadesSignMessage(&para,dwFlag,1,pbToBeSigned,cbToBeSigned,&pSignedMessage))
+    {
+        *size = sprintf(out,"CadesSignMessage() failed: %d", GetLastError());
+
+        return -1;
+    }
+    if (pChainContext)
+        CertFreeCertificateChain(pChainContext);
+
+    out = pSignedMessage->pbData;
+    *size=pSignedMessage->cbData;
+
+    if(!CadesFreeBlob(pSignedMessage))
+    {
+        *size = sprintf(out,"CadesFreeBlob() failed: %d", GetLastError());
 
         return -1;
     }
 
-    // Задаем параметры
-    CMSG_SIGNER_ENCODE_INFO signer = {sizeof(CMSG_SIGNER_ENCODE_INFO)};
-    signer.pCertInfo = pCertContext->pCertInfo; // Сертификат подписчика
-    signer.hCryptProv = hCryptProv; // Дескриптор криптопровайдера
-    signer.dwKeySpec = dwKeySpec;
-    signer.HashAlgorithm.pszObjId = (LPSTR) GetHashOid(pCertContext);
-
-    CERT_BLOB blob = {sizeof(CERT_BLOB)};
-    blob.cbData = pCertContext->cbCertEncoded;
-    blob.pbData = pCertContext->pbCertEncoded;
-
-    CMSG_SIGNED_ENCODE_INFO info = {sizeof(CMSG_SIGNED_ENCODE_INFO)};
-    info.cSigners = 1; // Количество подписчиков
-    info.rgSigners = &signer; // Массив подписчиков
-    info.cCertEncoded = 1;
-    info.rgCertEncoded = &blob;
-
-    // Открываем дескриптор сообщения для создания усовершенствованной подписи
-    HCRYPTMSG hMsg = CryptMsgOpenToEncode(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, dwFlag, CMSG_SIGNED, &info, 0, 0);
-    if (!hMsg) {
-        *size = sprintf(out,"Can`t open cades msg to encode: %d", GetLastError());
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        return -1;
-    }
-
-    // Формируем подпись в сообщении
-    if (!CryptMsgUpdate(hMsg, message, strlen(message), 1)) {
-        *size = sprintf(out,"Failed to update crypt msg: %d", GetLastError());
-        CryptMsgClose( hMsg );
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        return -1;
-    }
-
-    DWORD msgSize = 0;
-    // Получаем размер подписи
-    if (!CryptMsgGetParam(hMsg, CMSG_CONTENT_PARAM, 0, 0, &msgSize)) {
-        *size = sprintf(out,"Failed to get crypt msg param size: %d", GetLastError());
-        CryptMsgClose( hMsg );
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        return -1;
-    }
-
-    // Получаем подпись
-    if (!CryptMsgGetParam(hMsg, CMSG_CONTENT_PARAM, 0, &out[0], &msgSize)) {
-        *size = sprintf(out,"Failed to get crypt msg param: %d", GetLastError());
-        CryptMsgClose( hMsg );
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        return -1;
-    }
-
-    CryptMsgClose( hMsg );
-    if ( mustFree )
-        CryptReleaseContext( hCryptProv, 0 );
-
-    *size = msgSize;
-    return 0;
-}
-
-int sign_message_cades_bes_c_only(unsigned char* hexStrThumbprint, unsigned int dwFlag, BYTE* message, char* out, int *size) {
-    // Открываем хранилище сертификатов
-    HCERTSTORE hCertStore = CertOpenSystemStore(0, "MY");
-    if (!hCertStore) {
-        *size = sprintf(out,"Error open system store: %d", GetLastError());
-        return -1;
-    }
-
-    CRYPT_HASH_BLOB CryptHashBlob;
-    CryptHashBlob.pbData = hexStrThumbprint;
-    CryptHashBlob.cbData = strlen(hexStrThumbprint);
-
-    PCCERT_CONTEXT pCertContext = NULL;
-    pCertContext = CertFindCertificateInStore(
-        hCertStore, // Дескриптор хранилища, в котором будет осуществлен поиск.
-        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-        0,
-        CERT_FIND_SHA1_HASH,
-        &CryptHashBlob,
-        NULL);
-    if ( !pCertContext ) {
-        *size = sprintf(out,"Certificate not found: %d", GetLastError());
-        CertCloseStore( hCertStore, CERT_CLOSE_STORE_CHECK_FLAG );
-
-        return -1;
-    }
-
-    // Проверка закрытого ключа
-    int mustFree;
-    HCRYPTPROV hCryptProv;
-	unsigned int dwKeySpec = 0;
-    if ( !CryptAcquireCertificatePrivateKey(pCertContext, CRYPT_ACQUIRE_CACHE_FLAG,NULL, &hCryptProv, &dwKeySpec, &mustFree) ) {
-        *size = sprintf(out,"Private key not acquired: %d", GetLastError());
-        CertFreeCertificateContext( pCertContext );
-        CertCloseStore( hCertStore, CERT_CLOSE_STORE_CHECK_FLAG );
-
-        return -1;
-    }
-
-    // Задаем параметры
-    CMSG_SIGNER_ENCODE_INFO signer = {sizeof(CMSG_SIGNER_ENCODE_INFO)};
-    signer.pCertInfo = pCertContext->pCertInfo; // Сертификат подписчика
-    signer.hCryptProv = hCryptProv; // Дескриптор криптопровайдера
-    signer.dwKeySpec = dwKeySpec;
-    signer.HashAlgorithm.pszObjId = (LPSTR) GetHashOid(pCertContext);
-
-    CERT_BLOB blob = {sizeof(CERT_BLOB)};
-    blob.cbData = pCertContext->cbCertEncoded;
-    blob.pbData = pCertContext->pbCertEncoded;
-
-    CMSG_SIGNED_ENCODE_INFO info = {sizeof(CMSG_SIGNED_ENCODE_INFO)};
-    info.cSigners = 1; // Количество подписчиков
-    info.rgSigners = &signer; // Массив подписчиков
-    info.cCertEncoded = 1;
-    info.rgCertEncoded = &blob;
-
-    // Открываем дескриптор сообщения для создания усовершенствованной подписи
-    HCRYPTMSG hMsg = CryptMsgOpenToEncode(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, dwFlag, CMSG_SIGNED, &info, 0, 0);
-    if (!hMsg) {
-        *size = sprintf(out,"Can`t open cades msg to encode: %d", GetLastError());
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        CertFreeCertificateContext( pCertContext );
-        CertCloseStore( hCertStore, CERT_CLOSE_STORE_CHECK_FLAG );
-
-        return -1;
-    }
-
-    // Формируем подпись в сообщении
-    if (!CryptMsgUpdate(hMsg, message, strlen(message), 1)) {
-        *size = sprintf(out,"Failed to update crypt msg: %d", GetLastError());
-        CryptMsgClose( hMsg );
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        CertFreeCertificateContext( pCertContext );
-        CertCloseStore( hCertStore, CERT_CLOSE_STORE_CHECK_FLAG );
-
-        return -1;
-    }
-
-    DWORD msgSize = 0;
-    // Получаем размер подписи
-    if (!CryptMsgGetParam(hMsg, CMSG_CONTENT_PARAM, 0, 0, &msgSize)) {
-        *size = sprintf(out,"Failed to get crypt msg param size: %d", GetLastError());
-        CryptMsgClose( hMsg );
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        CertFreeCertificateContext( pCertContext );
-        CertCloseStore( hCertStore, CERT_CLOSE_STORE_CHECK_FLAG );
-
-        return -1;
-    }
-
-    // Получаем подпись
-    if (!CryptMsgGetParam(hMsg, CMSG_CONTENT_PARAM, 0, &out[0], &msgSize)) {
-        *size = sprintf(out,"Failed to get crypt msg param: %d", GetLastError());
-        CryptMsgClose( hMsg );
-        if ( mustFree )
-            CryptReleaseContext( hCryptProv, 0 );
-
-        CertFreeCertificateContext( pCertContext );
-        CertCloseStore( hCertStore, CERT_CLOSE_STORE_CHECK_FLAG );
-
-        return -1;
-    }
-
-    CryptMsgClose( hMsg );
-    if ( mustFree )
-        CryptReleaseContext( hCryptProv, 0 );
-
-    CertFreeCertificateContext( pCertContext );
-    CertCloseStore( hCertStore, CERT_CLOSE_STORE_CHECK_FLAG );
-
-    *size = msgSize;
     return 0;
 }
