@@ -2,7 +2,7 @@ package cryptopro
 
 /*
 #cgo CFLAGS: -DUNIX -DHAVE_LIMITS_H -DSIZEOF_VOID_P=8 -I/opt/cprocsp/include/ -I/opt/cprocsp/include/cpcsp -I/opt/cprocsp/include/pki -I/opt/cprocsp/include/reader
-#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20 -lcapi10 -lcades
+#cgo LDFLAGS: -L/opt/cprocsp/lib/amd64 -lcapi20 -lcapi10
 #include "sgnmsg.h"
 */
 import "C"
@@ -26,10 +26,9 @@ func SignMessageCadesBes(certContext *CertContext, detached bool, data []byte) (
 
 	size := C.int(0)
 
-	p := *certContext.pCertContext
-
-	errorCode := C.sign_message_cades_bes(p, dwFlag, cMsg, (*C.char)(cOut), &size)
+	errorCode := C.sign_message_cades_bes(*certContext.pCertContext, dwFlag, cMsg, (*C.char)(cOut), &size)
 	out := C.GoBytes(cOut, size)
+
 	if errorCode != 0 {
 		return nil, errors.New(string(out))
 	}

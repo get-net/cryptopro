@@ -4,7 +4,6 @@
 #include <string.h>
 #include <tchar.h>
 #include <CSP_WinCrypt.h>
-#include <cades.h>
 
 #include "sgnmsg.h"
 #include "_cgo_export.h"
@@ -26,19 +25,11 @@ const char* GetHashOid(PCCERT_CONTEXT pCert) {
     return NULL;
 }
 
-
 int sign_message_cades_bes(PCCERT_CONTEXT pCertContext , unsigned int dwFlag, BYTE* message, char* out, int *size) {
     CRYPT_SIGN_MESSAGE_PARA signPara = { sizeof(signPara) };
     signPara.dwMsgEncodingType = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
     signPara.pSigningCert = pCertContext; // 0 for window
     signPara.HashAlgorithm.pszObjId = (LPSTR) GetHashOid(pCertContext);
-
-    CADES_SIGN_PARA cadesSignPara = { sizeof(cadesSignPara) };
-    cadesSignPara.dwCadesType = CADES_BES;
-
-    CADES_SIGN_MESSAGE_PARA para = { sizeof(para) };
-    para.pSignMessagePara = &signPara;
-    para.pCadesSignPara = &cadesSignPara;
 
     // получаем цепочку сертификатов
     CERT_CHAIN_PARA             ChainPara = { sizeof(ChainPara) };
@@ -47,7 +38,7 @@ int sign_message_cades_bes(PCCERT_CONTEXT pCertContext , unsigned int dwFlag, BY
 
     PCCERT_CONTEXT certs[pChainContext->rgpChain[0]->cElement];
     for (DWORD i = 0; i < pChainContext->rgpChain[0]->cElement-1; ++i) {
-       certs[i]=pChainContext->rgpChain[0]->rgpElement[i]->pCertContext;
+        certs[i]=pChainContext->rgpChain[0]->rgpElement[i]->pCertContext;
     }
 
     if (sizeof(certs) > 0) {
@@ -58,9 +49,15 @@ int sign_message_cades_bes(PCCERT_CONTEXT pCertContext , unsigned int dwFlag, BY
     const BYTE *pbToBeSigned[] = { message };
     DWORD cbToBeSigned[] = { (DWORD)strlen(message) };
 
-    PCRYPT_DATA_BLOB pSignedMessage = 0;
-    if(!CadesSignMessage(&para,dwFlag,1,pbToBeSigned,cbToBeSigned,&pSignedMessage)) {
+    DWORD pcbSignedBlob;
+    if(!CryptSignMessage(&signPara,dwFlag,1,pbToBeSigned,cbToBeSigned,NULL, &pcbSignedBlob)) {
         *size = sprintf(out,"CadesSignMessage() failed: %d", GetLastError());
+
+        return -1;
+    }
+
+    if(!CryptSignMessage(&signPara,dwFlag,1,pbToBeSigned,cbToBeSigned,out, &pcbSignedBlob)) {
+        *size = sprintf(out,"CryptSignMessage() failed: %d", GetLastError());
 
         return -1;
     }
@@ -68,14 +65,7 @@ int sign_message_cades_bes(PCCERT_CONTEXT pCertContext , unsigned int dwFlag, BY
     if (pChainContext)
         CertFreeCertificateChain(pChainContext);
 
-    out = pSignedMessage->pbData;
-    *size=pSignedMessage->cbData;
-
-    if(!CadesFreeBlob(pSignedMessage)) {
-        *size = sprintf(out,"CadesFreeBlob() failed: %d", GetLastError());
-
-        return -1;
-    }
+    *size=pcbSignedBlob;
 
     return 0;
 }
