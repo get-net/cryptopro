@@ -24,7 +24,7 @@ func SignMessageCadesBes(certContext *CertContext, detached bool, data []byte) (
 	cOut := C.malloc(C.sizeof_char * 102400)
 	defer C.free(unsafe.Pointer(cOut))
 
-	size := C.int(0)
+	size := C.int(len(data))
 
 	errorCode := C.sign_message_cades_bes(*certContext.pCertContext, dwFlag, cMsg, (*C.char)(cOut), &size)
 	out := C.GoBytes(cOut, size)

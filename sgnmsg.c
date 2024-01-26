@@ -47,21 +47,18 @@ int sign_message_cades_bes(PCCERT_CONTEXT pCertContext , unsigned int dwFlag, BY
     }
 
     const BYTE *pbToBeSigned[] = { message };
-    DWORD cbToBeSigned[] = { (DWORD)strlen(message) };
-
     DWORD pcbSignedBlob;
-    if(!CryptSignMessage(&signPara,dwFlag,1,pbToBeSigned,cbToBeSigned,NULL, &pcbSignedBlob)) {
-        *size = sprintf(out,"CadesSignMessage() failed: %d", GetLastError());
-
-        return -1;
-    }
-
-    if(!CryptSignMessage(&signPara,dwFlag,1,pbToBeSigned,cbToBeSigned,out, &pcbSignedBlob)) {
+    if(!CryptSignMessage(&signPara,dwFlag,1,pbToBeSigned,size,NULL, &pcbSignedBlob)) {
         *size = sprintf(out,"CryptSignMessage() failed: %d", GetLastError());
 
         return -1;
     }
 
+    if(!CryptSignMessage(&signPara,dwFlag,1,pbToBeSigned,size,out, &pcbSignedBlob)) {
+        *size = sprintf(out,"CryptSignMessage() failed: %d", GetLastError());
+
+        return -1;
+    }
     if (pChainContext)
         CertFreeCertificateChain(pChainContext);
 
