@@ -19,9 +19,10 @@ struct XMLSigningResult {
     char *document;
     int document_size;
     int error_code;
+    DWORD crypto_pro_error;
 };
 
-struct XMLSigningResult sign_xml(const char *xml_document, const char *thumbprint);
+struct XMLSigningResult sign_xml(const char *xml_document, const char *xpath, DWORD signature_type, const char *thumbprint);
 
 #endif
 
