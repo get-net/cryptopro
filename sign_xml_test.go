@@ -4,7 +4,6 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/xml"
-	"fmt"
 	"os"
 	"testing"
 )
@@ -61,7 +60,10 @@ func TestSignXML(t *testing.T) {
 
 	document := []byte(SampleSmallDoc)
 
-	signedDocument, err := SignXML(document, thumbprint)
+	signedDocument, err := SignXML(SignatureInfo{
+		Document:   document,
+		Thumbprint: thumbprint,
+	})
 	if err != nil {
 		t.Error("failed:", err)
 		return
@@ -73,8 +75,6 @@ func TestSignXML(t *testing.T) {
 		t.Error("failed to decode the signed document:", err)
 		return
 	}
-
-	fmt.Println(string(signedDocument))
 
 	signature := structuredSignedDocument.Signature
 
@@ -97,7 +97,10 @@ func BenchmarkSignSmallXml(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := SignXML([]byte(SampleSmallDoc), thumbprint)
+			_, err := SignXML(SignatureInfo{
+				Document:   []byte(SampleSmallDoc),
+				Thumbprint: thumbprint,
+			})
 			if err != nil {
 				b.Fatal("failed to sign:", err)
 				return
@@ -115,7 +118,10 @@ func BenchmarkSignLargeXml(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := SignXML([]byte(SampleLargeDoc), thumbprint)
+			_, err := SignXML(SignatureInfo{
+				Document:   []byte(SampleLargeDoc),
+				Thumbprint: thumbprint,
+			})
 			if err != nil {
 				b.Fatal("failed to sign:", err)
 				return
