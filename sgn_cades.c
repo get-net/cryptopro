@@ -5,7 +5,7 @@
 #include <tchar.h>
 #include <CSP_WinCrypt.h>
 
-#include "sgnmsg.h"
+#include "sgn_cades.h"
 #include "_cgo_export.h"
 
 const char* GetHashOid(PCCERT_CONTEXT pCert) {
