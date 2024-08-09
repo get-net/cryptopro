@@ -209,4 +209,9 @@ func TestCryptImportPublicKeyInfo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = prov.Release()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
